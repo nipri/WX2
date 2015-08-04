@@ -2,6 +2,8 @@
 # Automatically-generated file. Do not edit or delete the file
 ################################################################################
 
+src\press_sensor.c
+
 src\ASF\common\services\clock\mega\sysclk.c
 
 src\main.c

@@ -58,6 +58,7 @@ SUBDIRS :=  \
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS +=  \
+../src/press_sensor.c \
 ../src/ASF/common/services/clock/mega/sysclk.c \
 ../src/main.c \
 ../src/ASF/common/boards/user_board/init.c
@@ -70,21 +71,25 @@ ASM_SRCS +=
 
 
 OBJS +=  \
+src/press_sensor.o \
 src/ASF/common/services/clock/mega/sysclk.o \
 src/main.o \
 src/ASF/common/boards/user_board/init.o
 
 OBJS_AS_ARGS +=  \
+src/press_sensor.o \
 src/ASF/common/services/clock/mega/sysclk.o \
 src/main.o \
 src/ASF/common/boards/user_board/init.o
 
 C_DEPS +=  \
+src/press_sensor.d \
 src/ASF/common/services/clock/mega/sysclk.d \
 src/main.d \
 src/ASF/common/boards/user_board/init.d
 
 C_DEPS_AS_ARGS +=  \
+src/press_sensor.d \
 src/ASF/common/services/clock/mega/sysclk.d \
 src/main.d \
 src/ASF/common/boards/user_board/init.d
@@ -107,14 +112,16 @@ LIB_DEP+=
 
 
 
-src/ASF/common/services/clock/mega/%.o: ../src/ASF/common/services/clock/mega/%.c
+
+
+src/%.o: ../src/%.c
 	@echo Building file: $<
 	@echo Invoking: AVR/GNU C Compiler : 3.4.4
 	$(QUOTE)C:\Program Files (x86)\Atmel\Atmel Toolchain\AVR8 GCC\Native\3.4.1056\avr8-gnu-toolchain\bin\avr-gcc.exe$(QUOTE)  -DBOARD=USER_BOARD  -I"../src" -I"../src/ASF/common/boards" -I"../src/ASF/common/boards/user_board" -I"../src/ASF/common/utils" -I"../src/ASF/mega/utils" -I"../src/ASF/mega/utils/preprocessor" -I"../src/config" -I"../src/ASF/mega/drivers/cpu" -I"../src/ASF/common/services/clock" -I"../src/ASF/common/services/gpio" -I"../src/ASF/common/services/ioport"  -O1 -fdata-sections -ffunction-sections -fdata-sections -g3 -Wall -mmcu=atmega2560 -c -std=gnu99 -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -mrelax -MD -MP -MF "$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -MT"$(@:%.o=%.o)"   -o "$@" "$<"
 	@echo Finished building: $<
 	
 
-src/%.o: ../src/%.c
+src/ASF/common/services/clock/mega/%.o: ../src/ASF/common/services/clock/mega/%.c
 	@echo Building file: $<
 	@echo Invoking: AVR/GNU C Compiler : 3.4.4
 	$(QUOTE)C:\Program Files (x86)\Atmel\Atmel Toolchain\AVR8 GCC\Native\3.4.1056\avr8-gnu-toolchain\bin\avr-gcc.exe$(QUOTE)  -DBOARD=USER_BOARD  -I"../src" -I"../src/ASF/common/boards" -I"../src/ASF/common/boards/user_board" -I"../src/ASF/common/utils" -I"../src/ASF/mega/utils" -I"../src/ASF/mega/utils/preprocessor" -I"../src/config" -I"../src/ASF/mega/drivers/cpu" -I"../src/ASF/common/services/clock" -I"../src/ASF/common/services/gpio" -I"../src/ASF/common/services/ioport"  -O1 -fdata-sections -ffunction-sections -fdata-sections -g3 -Wall -mmcu=atmega2560 -c -std=gnu99 -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -mrelax -MD -MP -MF "$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -MT"$(@:%.o=%.o)"   -o "$@" "$<"
