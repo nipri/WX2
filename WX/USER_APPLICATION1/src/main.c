@@ -409,6 +409,7 @@ ISR(TIMER0_COMPA_vect) {
 ISR(TIMER1_COMPA_vect) {
 	
 	int16_t temperature;
+	double temp2;
 	
 	toggleLED();
 	
@@ -432,8 +433,9 @@ ISR(TIMER1_COMPA_vect) {
 	}
 
 	temperature = getBMPtemp();	
+	temp2 = (double)temperature / 10;
 	memset(data, 0, 128);
-	sprintf(data, "Temperature @time: %d:%d:%d	%d\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature);
+	sprintf(data, "Temperature @time: %d:%d:%d	%.1f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2);
 	sendUART0data(data, sizeof(data));
 }
 
