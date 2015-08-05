@@ -15,6 +15,8 @@
 uint8_t BMP_SLA_W = 0xee;
 uint8_t BMP_SLA_R = 0xef;
 
+int32_t b5_2;
+
 struct bmpcal {
 	int16_t ac1;
 	int16_t ac2;
@@ -35,6 +37,11 @@ uint8_t getBMP_ID(void);
 void getBMPcoefficients(void);
 int16_t getBMPtemp(void);
 int16_t calculateBMPtemp(uint32_t);
+
+uint8_t oss = 0; //Need to change this along with the 2 oss bits in the control register
+
+int32_t getBMPpressure(void);
+int32_t calculateBMPpressure(uint32_t);
 
 inline void twiError(uint8_t code) {
 	
@@ -275,7 +282,121 @@ int16_t calculateBMPtemp(uint32_t rawData) {
 	x1=(rawData - bmp.ac6) * bmp.ac5 /pow(2, 15);
 	x2 = bmp.mc * pow(2, 11)/(x1 + bmp.md);
 	b5 = x1 + x2;
+	
+	b5_2 = b5;
+	
 	t = (b5 + 8)/pow(2, 4);
 	
 	return t;
+}
+
+int32_t getBMPpressure(void) {
+	
+	uint8_t xlsb, lsb, msb;
+	uint32_t rawPressureData;
+	int32_t calcPressure;
+	
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
+	while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted
+	
+	if ( (TWSR & 0xf8) != START)
+	twiError(5);
+	
+	TWDR = BMP_SLA_W;							// Send the slave module address + write bit
+	TWCR = (1<<TWINT) | (1<<TWEN);				// Transmit the address
+	while (!(TWCR & (1<<TWINT)));
+	
+	if ( (TWSR & 0xf8) != SL_ACK)				// Look for slave ACK
+	twiError(6);
+	
+	TWDR = 0xf4;								// Send the control register address
+	TWCR = (1<<TWINT) | (1<<TWEN );
+	while (!(TWCR & (1<<TWINT)));
+	
+	if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
+	twiError(7);
+	
+	TWDR = 0x34;								// Send the control register data
+	TWCR = (1<<TWINT) | (1<<TWEN );
+	while (!(TWCR & (1<<TWINT)));
+	
+	if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
+	twiError(8);
+	
+	TWDR = 0xf6;								// Send the address of the AD MSB
+	TWCR = (1<<TWINT) | (1<<TWEN );
+	while (!(TWCR & (1<<TWINT)));
+	
+	if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
+	twiError(8);
+	
+	_delay_ms(10);
+	
+	
+	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN); // send Repeated Start and wait...
+	while (!(TWCR & (1<<TWINT)));
+	
+	TWDR = BMP_SLA_R;							// Send the slave module address + read bit
+	TWCR = (1<<TWINT) | (0<<TWSTA) | (0<<TWSTO) | (1<<TWEA) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	
+	if ( (TWSR & 0xf8) != MR_SLA_ACK)			// Look for slave ACK
+	twiError(8);
+
+	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);   // Send a RESTART and an ACK after MSB is received
+	while (!(TWCR & (1<<TWINT)));
+	
+	msb = TWDR;
+	
+//	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);   // Send a RESTART and an ACK after MSB is received
+//	while (!(TWCR & (1<<TWINT)));
+	
+//	lsb = TWDR;	
+	
+	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);   // Send a RESTART and a NACK after LSB is received
+	while (!(TWCR & (1<<TWINT)));
+
+//	xlsb = TWDR;
+	lsb = TWDR;
+	
+	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
+	
+//	rawPressureData = ( (msb << 16) | (lsb << 8) | xlsb ) >>  (8-oss);
+	rawPressureData = (msb << 8) | lsb;
+//	calcPressure = calculateBMPpressure(rawPressureData);
+	return rawPressureData;
+	
+}
+
+int32_t calculateBMPpressure(uint32_t rawPressure) {
+	
+	int32_t b3, b6;
+	uint32_t b4, b7;
+	int32_t x1, x2, x3;
+	int32_t p;
+
+	b6 = b5_2 - 4000;
+	x1 = (bmp.b2 * (b6 * b6/pow(2,12) ) ) / pow(2, 11);
+	x2 = bmp.ac2 * b6 / pow(2, 11);
+	x3 = x1 + x2;
+	b3 = ((  (uint32_t)(bmp.ac1 * 4 + x3) << oss) + 2) / 4;
+	x1 = bmp.ac3 * b6 / pow(2, 13);
+	x2 = (bmp.b1 * (b6 * b6 / pow(2, 12) ) ) / pow(2, 16);
+	x3 = ( (x1 + x2) + 2) / pow (2,2);
+	b4 = bmp.ac4 * (uint32_t)(x3 + 32768) / pow(2, 15);
+	b7 = ( (uint32_t)rawPressure - b3) * (50000 >> oss);
+	
+	if (b7 < 0x80000000) {
+		p = (b7 *2) / b4;
+	} else {
+		p = (b7 / b4) * 2;
+	}
+	
+	x1 = (p / pow(2,8)) * (p / pow(2,8));
+	x1 = (x1 * 3038) / pow(2, 16);
+	x2 = (-7357 * p) / pow(2, 16);
+	p = p + (x1 + x2 + 3791) / pow(2, 4);
+
+	return p;
+	
 }

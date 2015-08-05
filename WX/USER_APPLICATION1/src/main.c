@@ -84,6 +84,7 @@ struct bmpcal {
 uint8_t getBMP_ID(void);
 inline void getBMPcoefficients(void);
 int16_t getBMPtemp(void);
+int32_t getBMPpressure(void);
 //inline void calculateBMPtemp(uint32_t);
 inline void init_USART0(uint8_t);
 inline void sendUART0data(char strData[], uint8_t size);
@@ -409,6 +410,7 @@ ISR(TIMER0_COMPA_vect) {
 ISR(TIMER1_COMPA_vect) {
 	
 	int16_t temperature;
+	int32_t pressure;
 	double temp2;
 	
 	toggleLED();
@@ -433,9 +435,13 @@ ISR(TIMER1_COMPA_vect) {
 	}
 
 	temperature = getBMPtemp();	
+	pressure = getBMPpressure();
+	
 	temp2 = (double)temperature / 10;
+	//1 pascal is equal to 0.000295299830714 inHg
+	
 	memset(data, 0, 128);
-	sprintf(data, "Temperature @time: %d:%d:%d	%.1f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2);
+	sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%ld\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2, pressure);
 	sendUART0data(data, sizeof(data));
 }
 
