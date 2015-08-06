@@ -52,6 +52,9 @@ uint8_t seconds;
 //uint8_t BMP_SLA_R = 0xef;
 
 char data[128] = "";
+uint32_t temperature;
+
+extern uint32_t calcTemp, calcPressure;
 
 struct datetime {
 	uint8_t seconds;
@@ -62,292 +65,18 @@ struct datetime {
 	uint16_t years;
 	
 	} datetime;
-
-/*
-struct bmpcal {
-	int16_t ac1;
-	int16_t ac2;
-	int16_t ac3;
-	uint16_t ac4;
-	uint16_t ac5;
-	uint16_t ac6;
-	int16_t b1;
-	int16_t b2;
-	int16_t mb;
-	int16_t mc;
-	int16_t md;
-	
-	} bmp;
-*/
 	
 //inline void twiError(uint8_t);
 uint8_t getBMP_ID(void);
-inline void getBMPcoefficients(void);
-int16_t getBMPtemp(void);
-int32_t getBMPpressure(void);
+void getBMPcoefficients(void);
+uint32_t getBMPtemp(void);
+uint32_t getBMPpressure(void);
+void BMPreset(void);
 //inline void calculateBMPtemp(uint32_t);
-inline void init_USART0(uint8_t);
-inline void sendUART0data(char strData[], uint8_t size);
-inline void toggleLED(void);
+void init_USART0(uint8_t);
+void sendUART0data(char strData[], uint8_t size);
+void toggleLED(void);
 
-
-/*
-inline void twiError(uint8_t code) {
-	
-	memset(data, 0, 128);
-	sprintf(data, "TWI Error Code %d\r\n", code);
-	sendUART0data(data, sizeof(data));
-}
-
-inline void getBMP_ID(void) {
-	
-	uint8_t bmpid;
-	
-	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);	// send Start
-	while ( !(TWCR & (1<<TWINT) ) );		// Wait for Start to be transmitted
-			
-	if ( (TWSR & 0xf8) != START)
-	twiError(0);
-			
-	TWDR = BMP_SLA_W;						// Send the slave module address + write bit
-	TWCR = (1<<TWINT) | (1<<TWEN);			// Transmit the address and wait
-	while (!(TWCR & (1<<TWINT)));
-		
-	if ( (TWSR & 0xf8) != SL_ACK)			// Look for slave ACK
-		twiError(1);
-			
-	TWDR = 0xd0;							// Load and send address of the BMP ID register which should contain 0x55
-	TWCR = (1<<TWINT) | (1<<TWEN );
-	while (!(TWCR & (1<<TWINT)));
-			
-	if ( (TWSR & 0xf8) != MT_DATA_ACK)		// Look for slave ACK
-		twiError(2);
-			
-	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);		// send Repeated Start and wait...
-	while (!(TWCR & (1<<TWINT)));
-			
-	TWDR = BMP_SLA_R;							// Send the slave module address + read bit and wait
-	TWCR = (1<<TWINT) | (0<<TWSTA) | (0<<TWSTO) | (1<<TWEA) | (1<<TWEN);
-	while (!(TWCR & (1<<TWINT)));
-		
-	if ( (TWSR & 0xf8) != MR_SLA_ACK)			 // Look for slave ACK
-	twiError(4);
-		
-	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);		// send a RESTART and return a NACK
-		
-	while (!(TWCR & (1<<TWINT))); // Wait for slave to return a byte				
-
-	bmpid = TWDR;
-		
-	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
-	
-	memset (data, 0, 128);
-	sprintf(data, "BMP ID: %4x \r\n", bmpid);
-	sendUART0data(data, sizeof(data));	
-}
-
-inline void getBMPcoefficients(void) {
-	
-	uint8_t MSB, LSB, i;
-	int16_t coeffData;
-	
-	for (i = 0xaa; i <= 0xbe; i += 2) {
-		
-		TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
-		while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted 
-	
-		if ( (TWSR & 0xf8) != START)
-			twiError(0);
-		
-		TWDR = BMP_SLA_W;							// Send the slave module address + write bit
-		TWCR = (1<<TWINT) | (1<<TWEN);				// Transmit the address
-		while (!(TWCR & (1<<TWINT)));
-	
-		if ( (TWSR & 0xf8) != SL_ACK)				// Look for slave ACK
-			twiError(1);							
-		
-		TWDR = i;									// Send the EEPROM coefficient address to read
-		TWCR = (1<<TWINT) | (1<<TWEN );
-		while (!(TWCR & (1<<TWINT)));
-		
-		if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
-			twiError(2);	
-				
-		TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN); // send Repeated Start and wait...
-		while (!(TWCR & (1<<TWINT)));	
-	
-//		if ( (TWSR & 0xf8) != RESTART)
-//			twiError(3);		
-	
-		TWDR = BMP_SLA_R;							// Send the slave module address + read bit
-		TWCR = (1<<TWINT) | (0<<TWSTA) | (0<<TWSTO) | (1<<TWEA) | (1<<TWEN);				
-		while (!(TWCR & (1<<TWINT)));	
-		
-		if ( (TWSR & 0xf8) != MR_SLA_ACK)			// Look for slave ACK
-			twiError(4);
-
-		TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);   // Send a RESTART and an ACK after MSB is received
-		while (!(TWCR & (1<<TWINT)));	
-	
-		MSB = TWDR;
-	
-		TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);   // Send a RESTART and a NACK after LSB is received
-		while (!(TWCR & (1<<TWINT)));
-
-		LSB = TWDR;
-		
-		TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
-		
-		
-		coeffData = (MSB << 8) | LSB;
-		memset (data, 0, 128);
-		sprintf(data, "Coefficient at %2x: %d \r\n", i, coeffData);
-		sendUART0data(data, sizeof(data));
-		
-	
-		switch (i) {
-			
-			case 0xaa:
-				bmp.ac1 = (MSB << 8) | LSB;
-				break;
-				
-			case 0xac:
-				bmp.ac2 = (MSB << 8) | LSB;
-				break;		
-				
-			case 0xae:
-				bmp.ac3 = (MSB << 8) | LSB;
-				break;		
-				
-			case 0xb0:
-				bmp.ac4 = (MSB << 8) | LSB;		
-				break;	
-				
-			case 0xb2:
-				bmp.ac5 = (MSB << 8) | LSB;
-				break;	
-				
-			case 0xb4:
-				bmp.ac6 = (MSB << 8) | LSB;
-				break;		
-				
-			case 0xb6:
-				bmp.b1 = (MSB << 8) | LSB;
-				break;		
-				
-			case 0xb8:
-				bmp.b2 = (MSB << 8) | LSB;
-				break;	
-				
-			case 0xba:
-				bmp.mb = (MSB << 8) | LSB;
-				break;	
-				
-			case 0xbc:
-				bmp.mc = (MSB << 8) | LSB;
-				break;	
-				
-			case 0xbe:
-				bmp.md = (MSB << 8) | LSB;
-				break;		
-				
-			default:
-				break;
-		}
-	
-	}
-}
-
-
-inline void getBMPtemp(void) {
-	
-		uint8_t MSB, LSB;
-		uint32_t rawTempData;
-			
-		TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
-		while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted
-			
-		if ( (TWSR & 0xf8) != START)
-		twiError(5);
-			
-		TWDR = BMP_SLA_W;							// Send the slave module address + write bit
-		TWCR = (1<<TWINT) | (1<<TWEN);				// Transmit the address
-		while (!(TWCR & (1<<TWINT)));
-			
-		if ( (TWSR & 0xf8) != SL_ACK)				// Look for slave ACK
-		twiError(6);
-			
-		TWDR = 0xf4;								// Send the control register address 
-		TWCR = (1<<TWINT) | (1<<TWEN );
-		while (!(TWCR & (1<<TWINT)));
-			
-		if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
-		twiError(7);
-		
-		TWDR = 0x2e;								// Send the control register data
-		TWCR = (1<<TWINT) | (1<<TWEN );
-		while (!(TWCR & (1<<TWINT)));
-		
-		if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
-		twiError(8);
-		
-		TWDR = 0xf6;								// Send the address of the AD MSB
-		TWCR = (1<<TWINT) | (1<<TWEN );
-		while (!(TWCR & (1<<TWINT)));
-				
-		if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
-		twiError(8);
-		
-		_delay_ms(5);
-		
-			
-		TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN); // send Repeated Start and wait...
-		while (!(TWCR & (1<<TWINT)));
-			
-		TWDR = BMP_SLA_R;							// Send the slave module address + read bit
-		TWCR = (1<<TWINT) | (0<<TWSTA) | (0<<TWSTO) | (1<<TWEA) | (1<<TWEN);
-		while (!(TWCR & (1<<TWINT)));
-			
-		if ( (TWSR & 0xf8) != MR_SLA_ACK)			// Look for slave ACK
-		twiError(8);
-
-		TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);   // Send a RESTART and an ACK after MSB is received
-		while (!(TWCR & (1<<TWINT)));
-			
-		MSB = TWDR;
-			
-		TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);   // Send a RESTART and a NACK after LSB is received
-		while (!(TWCR & (1<<TWINT)));
-
-		LSB = TWDR;
-			
-		TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
-				
-		rawTempData = (MSB << 8) | LSB;
-		calculateBMPtemp(rawTempData);
-		
-//		memset (data, 0, 128);
-//		sprintf(data, "Raw Temp Data: %4x\r\n", rawTempData);
-//		sendUART0data(data, sizeof(data));	
-}
-
-inline void calculateBMPtemp(uint32_t rawData) {
-	
-	int32_t x1, x2, b5;
-	int16_t t;
-	
-	x1=(rawData - bmp.ac6) * bmp.ac5 /pow(2, 15);
-	x2 = bmp.mc * pow(2, 11)/(x1 + bmp.md);
-	b5 = x1 + x2;
-	t = (b5 + 8)/pow(2, 4);
-	
-	memset (data, 0, 128);
-	sprintf(data, "Raw Data: %lu	Calculated Temp: %d\r\n", rawData, t);
-	sendUART0data(data, sizeof(data));
-	
-}
-
-*/
 
 inline void init_USART0(uint8_t ubrr){
 	
@@ -409,8 +138,8 @@ ISR(TIMER0_COMPA_vect) {
 // Will be used as an accurate seconds counter for timestamping and reading sensor data 
 ISR(TIMER1_COMPA_vect) {
 	
-	int16_t temperature;
-	int32_t pressure;
+//	uint32_t temperature;
+	uint32_t pressure;
 	double temp2;
 	
 	toggleLED();
@@ -434,7 +163,7 @@ ISR(TIMER1_COMPA_vect) {
 		}
 	}
 
-	temperature = getBMPtemp();	
+//	temperature = getBMPtemp();	
 	pressure = getBMPpressure();
 	
 	temp2 = (double)temperature / 10;
@@ -473,7 +202,7 @@ int main (void)
 	
 // Set up the TWI
 	TWSR = (TWPS1 << 0) | (TWPS0 << 0);
-	TWBR = 0x06;
+	TWBR = 0x0b;
 
 // Set up TC0
 	TCCR0A = 0x0;
@@ -508,6 +237,7 @@ int main (void)
 	sendUART0data(data, sizeof(data));
 	
 	getBMPcoefficients();
+	temperature = getBMPtemp();	
 
 	
 	while(1) {
