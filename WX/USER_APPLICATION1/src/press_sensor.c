@@ -12,10 +12,10 @@
 #define MT_DATA_ACK 0x28
 #define MR_SLA_ACK	0x40
 
-uint8_t BMP_SLA_W = 0xee;
-uint8_t BMP_SLA_R = 0xef;
+#define BMP_SLA_W	0xee
+#define BMP_SLA_R	0xef
 
-int32_t b5_2;
+static int32_t b5_2;
 
 struct bmpcal {
 	int16_t ac1;
@@ -153,47 +153,47 @@ void getBMPcoefficients(void) {
 		switch (i) {
 			
 			case 0xaa:
-			bmp.ac1 = (MSB << 8) | LSB;
+			bmp.ac1 = coeffData;
 			break;
 			
 			case 0xac:
-			bmp.ac2 = (MSB << 8) | LSB;
+			bmp.ac2 = coeffData;
 			break;
 			
 			case 0xae:
-			bmp.ac3 = (MSB << 8) | LSB;
+			bmp.ac3 = coeffData;
 			break;
 			
 			case 0xb0:
-			bmp.ac4 = (MSB << 8) | LSB;
+			bmp.ac4 = coeffData;
 			break;
 			
 			case 0xb2:
-			bmp.ac5 = (MSB << 8) | LSB;
+			bmp.ac5 = coeffData;
 			break;
 			
 			case 0xb4:
-			bmp.ac6 = (MSB << 8) | LSB;
+			bmp.ac6 = coeffData;
 			break;
 			
 			case 0xb6:
-			bmp.b1 = (MSB << 8) | LSB;
+			bmp.b1 = coeffData;
 			break;
 			
 			case 0xb8:
-			bmp.b2 = (MSB << 8) | LSB;
+			bmp.b2 = coeffData;
 			break;
 			
 			case 0xba:
-			bmp.mb = (MSB << 8) | LSB;
+			bmp.mb = coeffData;
 			break;
 			
 			case 0xbc:
-			bmp.mc = (MSB << 8) | LSB;
+			bmp.mc = coeffData;
 			break;
 			
 			case 0xbe:
-			bmp.md = (MSB << 8) | LSB;
+			bmp.md = coeffData;
 			break;
 			
 			default:
@@ -242,6 +242,8 @@ uint32_t getBMPtemp(void) {
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop	
 	
 	
+	_delay_ms(10);
+	
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
 	while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted
 	
@@ -287,10 +289,13 @@ uint32_t getBMPtemp(void) {
 	return calcTemp;
 }
 
+
 uint32_t calculateBMPtemp(uint32_t rawData) {
 	
-	int32_t x1, x2, b5;
-	int16_t t;
+	int32_t x1 = 0;
+	int32_t x2 = 0;
+	int32_t b5 = 0;
+	int16_t t = 0;
 	
 	x1=(rawData - bmp.ac6) * bmp.ac5 /pow(2, 15);
 	x2 = bmp.mc * pow(2, 11)/(x1 + bmp.md);
@@ -337,7 +342,7 @@ uint32_t getBMPpressure(void) {
 	
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop	
 	
-	
+	_delay_ms(10);
 	
 	
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start

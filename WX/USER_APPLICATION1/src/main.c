@@ -26,7 +26,7 @@
  */
 
 
-#define F_CPU	16000000UL
+//#define F_CPU	16000000UL
 #define FOSC	1843200UL
 #define BAUD	9600					// This has to be defined before including setbaud.h
 #define MYUBRR	(F_CPU / 16 / BAUD-1)
@@ -51,10 +51,11 @@ uint8_t seconds;
 //uint8_t BMP_SLA_W = 0xee;
 //uint8_t BMP_SLA_R = 0xef;
 
-char data[128] = "";
-uint32_t temperature;
-
-extern uint32_t calcTemp, calcPressure;
+static char data[128] = "";
+static uint32_t temperature;
+static double temp2;
+static uint8_t count;
+//uint32_t temperature;
 
 struct datetime {
 	uint8_t seconds;
@@ -138,9 +139,7 @@ ISR(TIMER0_COMPA_vect) {
 // Will be used as an accurate seconds counter for timestamping and reading sensor data 
 ISR(TIMER1_COMPA_vect) {
 	
-//	uint32_t temperature;
 	uint32_t pressure;
-	double temp2;
 	
 	toggleLED();
 	
@@ -163,10 +162,13 @@ ISR(TIMER1_COMPA_vect) {
 		}
 	}
 
-//	temperature = getBMPtemp();	
-	pressure = getBMPpressure();
 	
-	temp2 = (double)temperature / 10;
+		temperature = getBMPtemp();
+		temp2 = (double)temperature / 10;
+		
+		pressure = getBMPpressure();
+	
+	
 	//1 pascal is equal to 0.000295299830714 inHg
 	
 	memset(data, 0, 128);
@@ -193,8 +195,8 @@ int main (void)
 //Set up external interrupts
 
 	// INT0 for rain gauge
-	EICRA = 0x02;	// Enable falling edge interrupt on INT0 (pin 43 or pin 21 on Arduino header)
-	EIMSK = 0x01;	// Mask INT0 
+	EICRA = 0x20;	// Enable falling edge interrupt on INT2
+	EIMSK = 0x04;	// Mask INT2
 	
 	// INT1 for anemometer
 
@@ -237,7 +239,11 @@ int main (void)
 	sendUART0data(data, sizeof(data));
 	
 	getBMPcoefficients();
-	temperature = getBMPtemp();	
+	
+		temperature = getBMPtemp();
+		temp2 = (double)temperature / 10;
+		sprintf(data, "Initial Temp: %.1f\r\n", temp2);
+		sendUART0data(data, sizeof(data));
 
 	
 	while(1) {
