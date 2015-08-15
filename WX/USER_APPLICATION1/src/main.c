@@ -53,8 +53,12 @@ uint8_t seconds;
 
 static char data[128] = "";
 static uint32_t temperature;
+static double pressure;
 static double temp2;
-static uint8_t count;
+static double pressure2;
+static double a, inHg;
+static uint16_t count;
+static uint16_t elevation = 155.5; // Location elevation in meters
 //uint32_t temperature;
 
 struct datetime {
@@ -139,8 +143,6 @@ ISR(TIMER0_COMPA_vect) {
 // Will be used as an accurate seconds counter for timestamping and reading sensor data 
 ISR(TIMER1_COMPA_vect) {
 	
-	uint32_t pressure;
-	
 	toggleLED();
 	
 	datetime.seconds++;
@@ -163,17 +165,29 @@ ISR(TIMER1_COMPA_vect) {
 	}
 
 	
+	count++;
+	
+	if (count >= 900) { //Every 15 minutes
+	
 		temperature = getBMPtemp();
 		temp2 = (double)temperature / 10;
 		
 		pressure = getBMPpressure();
+		
+		a = 1 - (double)elevation/44330;
+		a = pow(a, 5.255);
+		
+		pressure2 = pressure / a;
+		inHg = pressure2 * 0.0002953;
+
+		//1 pascal is equal to 0.000295299830714 inHg
 	
-	
-	//1 pascal is equal to 0.000295299830714 inHg
-	
-	memset(data, 0, 128);
-	sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%ld\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2, pressure);
-	sendUART0data(data, sizeof(data));
+		memset(data, 0, 128);
+		sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2, inHg);
+		sendUART0data(data, sizeof(data));
+		count = 0;
+	}
+		
 }
 
 int main (void)
@@ -242,16 +256,22 @@ int main (void)
 	
 		temperature = getBMPtemp();
 		temp2 = (double)temperature / 10;
-		sprintf(data, "Initial Temp: %.1f\r\n", temp2);
-		sendUART0data(data, sizeof(data));
+		
+		pressure = getBMPpressure();
+		
+		a = 1 - (double)elevation/44330;
+		a = pow(a, 5.255);
+		
+		pressure2 = pressure / a;
+		inHg = pressure2 * 0.0002953;
 
+		//1 pascal is equal to 0.000295299830714 inHg
+		
+		memset(data, 0, 128);
+		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temp2, inHg);
+		sendUART0data(data, sizeof(data));	
 	
 	while(1) {
-		
-//		_delay_ms(1000);
-//		memset(data, 0, 128);
-//		sprintf(data, "Hello world: %d:%d:%d\r\n", datetime.hours, datetime.minutes, datetime.seconds);
-//		sendUART0data(data, sizeof(data));
 		 		
 	}
 }

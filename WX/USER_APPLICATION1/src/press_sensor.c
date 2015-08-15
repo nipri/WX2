@@ -40,7 +40,7 @@ uint32_t calculateBMPtemp(uint32_t);
 
 void BMPreset(void);
 
-uint8_t oss = 0; //Need to change this along with the 2 oss bits in the control register
+static uint8_t oss = 3; //Need to change this along with the 2 oss bits in the control register
 
 uint32_t getBMPpressure(void);
 uint32_t calculateBMPpressure(uint32_t);
@@ -310,8 +310,8 @@ uint32_t calculateBMPtemp(uint32_t rawData) {
 
 uint32_t getBMPpressure(void) {
 	
-	uint8_t MSB2, LSB2;
-	uint32_t rawPressureData, calcPressure;
+	uint32_t MSB2, LSB2, XLSB;
+	uint32_t rawPressureData, absPressure;
 	
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
 	while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted
@@ -333,7 +333,8 @@ uint32_t getBMPpressure(void) {
 	if ( (TWSR & 0xf8) != MT_DATA_ACK)			// Look for slave ACK
 	twiError(7);
 	
-	TWDR = 0x34;								// Send the control register data
+//	TWDR = 0x34;								// Send the control register data
+	TWDR = 0xf4;								// Send the control register data
 	TWCR = (1<<TWINT) | (1<<TWEN );
 	while (!(TWCR & (1<<TWINT)));
 	
@@ -341,8 +342,9 @@ uint32_t getBMPpressure(void) {
 	twiError(8);
 	
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop	
-	
-	_delay_ms(10);
+
+//	_delay_ms(10);	
+	_delay_ms(100);
 	
 	
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
@@ -377,17 +379,24 @@ uint32_t getBMPpressure(void) {
 	
 	MSB2 = TWDR;
 	
-	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);   // Send a RESTART and a NACK after LSB is received
+	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);   // Send a RESTART and an ACK after LSB is received
+	while (!(TWCR & (1<<TWINT)));
+	
+	LSB2 = TWDR;
+	
+	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);   // Send a RESTART and a NACK after LSB2 is received
 	while (!(TWCR & (1<<TWINT)));
 
-	LSB2 = TWDR;
+	XLSB = TWDR;
+//	LSB2 = TWDR;
 	
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
 	
-	rawPressureData = ( (MSB2 << 8) & 0xff00) | LSB2;
-	calcPressure = calculateBMPpressure(rawPressureData);
+//	rawPressureData = ( (MSB2 << 8) & 0xff00) | LSB2;
+	rawPressureData = (((MSB2 << 16) & 0xFF0000) + ((LSB2 << 8) & 0xFF00) + (XLSB & 0xFF)) >> (8 - oss);
+	absPressure = calculateBMPpressure(rawPressureData);
 	
-	return calcPressure;
+	return absPressure;
 	
 }
 
@@ -399,12 +408,12 @@ uint32_t calculateBMPpressure(uint32_t rawPressure) {
 	int32_t p;
 
 	b6 = b5_2 - 4000;
-	x1 = (bmp.b2 * (b6 * b6/pow(2,12) ) ) / pow(2, 11);
-	x2 = bmp.ac2 * b6 / pow(2, 11);
+	x1 = (bmp.b2 * (b6 * (b6/pow(2,12)) ) ) / pow(2, 11);
+	x2 = bmp.ac2 * (b6 / pow(2, 11));
 	x3 = x1 + x2;
-	b3 = ((  (uint32_t)(bmp.ac1 * 4 + x3) << oss) + 2) / 4;
-	x1 = bmp.ac3 * b6 / pow(2, 13);
-	x2 = (bmp.b1 * (b6 * b6 / pow(2, 12) ) ) / pow(2, 16);
+	b3 = ( ( (bmp.ac1 * 4 + x3) << oss) + 2) / 4;
+	x1 = bmp.ac3 * (b6 / pow(2, 13));
+	x2 = (bmp.b1 * (b6 * (b6 / pow(2, 12)) ) ) / pow(2, 16);
 	x3 = ( (x1 + x2) + 2) / pow (2,2);
 	b4 = bmp.ac4 * (uint32_t)(x3 + 32768) / pow(2, 15);
 	b7 = ( (uint32_t)rawPressure - b3) * (50000 >> oss);
