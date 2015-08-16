@@ -35,15 +35,12 @@ struct bmpcal {
 void twiError(uint8_t);
 uint8_t getBMP_ID(void);
 void getBMPcoefficients(void);
-uint32_t getBMPtemp(void);
-uint32_t calculateBMPtemp(uint32_t);
-
+double getBMPtemp(void);
 void BMPreset(void);
 
 static uint8_t oss = 3; //Need to change this along with the 2 oss bits in the control register
 
-uint32_t getBMPpressure(void);
-uint32_t calculateBMPpressure(uint32_t);
+double getBMPpressure(uint16_t);
 
 void twiError(uint8_t code) {
 	
@@ -204,11 +201,16 @@ void getBMPcoefficients(void) {
 }
 
 
-uint32_t getBMPtemp(void) {
+double getBMPtemp(void) {
 	
 	uint8_t MSB, LSB;
 	uint32_t rawTempData;
-	uint32_t calcTemp;
+	double calcTemp;
+	
+	int32_t x1 = 0;
+	int32_t x2 = 0;
+	int32_t b5 = 0;
+	int16_t t = 0;
 	
 // Get raw temperature
 	
@@ -284,34 +286,32 @@ uint32_t getBMPtemp(void) {
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);  // Send a Stop
 	
 	rawTempData = (MSB << 8) | LSB;
-	calcTemp = calculateBMPtemp(rawTempData);
-	
-	return calcTemp;
-}
 
-
-uint32_t calculateBMPtemp(uint32_t rawData) {
-	
-	int32_t x1 = 0;
-	int32_t x2 = 0;
-	int32_t b5 = 0;
-	int16_t t = 0;
-	
-	x1=(rawData - bmp.ac6) * bmp.ac5 /pow(2, 15);
+// Calculate the temperature using the coefficients
+	x1=(rawTempData - bmp.ac6) * bmp.ac5 /pow(2, 15);
 	x2 = bmp.mc * pow(2, 11)/(x1 + bmp.md);
 	b5 = x1 + x2;
-	
+
+// Save this to a global for use in calculating the pressure	
 	b5_2 = b5;
 	
 	t = (b5 + 8)/pow(2, 4);
-	
-	return t;
+
+// Returns temperature in deg.C
+	calcTemp = (double)t / 10;	
+	return calcTemp;
 }
 
-uint32_t getBMPpressure(void) {
+double getBMPpressure(uint16_t height) {
 	
 	uint32_t MSB2, LSB2, XLSB;
-	uint32_t rawPressureData, absPressure;
+	uint32_t rawPressureData;
+	double a, pressure, inHg;
+	
+	int32_t b3, b6;
+	uint32_t b4, b7;
+	int32_t x1, x2, x3;
+	int32_t p;	
 	
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);		// send Start
 	while ( !(TWCR & (1<<TWINT) ) );			// Wait for Start to be transmitted
@@ -394,19 +394,9 @@ uint32_t getBMPpressure(void) {
 	
 //	rawPressureData = ( (MSB2 << 8) & 0xff00) | LSB2;
 	rawPressureData = (((MSB2 << 16) & 0xFF0000) + ((LSB2 << 8) & 0xFF00) + (XLSB & 0xFF)) >> (8 - oss);
-	absPressure = calculateBMPpressure(rawPressureData);
-	
-	return absPressure;
-	
-}
 
-uint32_t calculateBMPpressure(uint32_t rawPressure) {
-	
-	int32_t b3, b6;
-	uint32_t b4, b7;
-	int32_t x1, x2, x3;
-	int32_t p;
 
+// Calculate the absolute pressure 
 	b6 = b5_2 - 4000;
 	x1 = (bmp.b2 * (b6 * (b6/pow(2,12)) ) ) / pow(2, 11);
 	x2 = bmp.ac2 * (b6 / pow(2, 11));
@@ -416,11 +406,11 @@ uint32_t calculateBMPpressure(uint32_t rawPressure) {
 	x2 = (bmp.b1 * (b6 * (b6 / pow(2, 12)) ) ) / pow(2, 16);
 	x3 = ( (x1 + x2) + 2) / pow (2,2);
 	b4 = bmp.ac4 * (uint32_t)(x3 + 32768) / pow(2, 15);
-	b7 = ( (uint32_t)rawPressure - b3) * (50000 >> oss);
+	b7 = ( (uint32_t)rawPressureData - b3) * (50000 >> oss);
 	
 	if (b7 < 0x80000000) {
 		p = (b7 *2) / b4;
-	} else {
+		} else {
 		p = (b7 / b4) * 2;
 	}
 	
@@ -429,8 +419,15 @@ uint32_t calculateBMPpressure(uint32_t rawPressure) {
 	x2 = (-7357 * p) / pow(2, 16);
 	p = p + (x1 + x2 + 3791) / pow(2, 4);
 
-	return p;
+
+// Calculate pressure @ sea level & return this
+	a = 1 - (double)height/44330;
+	a = pow(a, 5.255);
+		
+	pressure = p / a;
+	inHg = pressure * 0.0002953; // 1 inHg = 0.0002953 Pa
 	
+	return inHg;	
 }
 
 void BMPreset(void) {

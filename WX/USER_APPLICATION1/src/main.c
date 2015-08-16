@@ -26,15 +26,9 @@
  */
 
 
-//#define F_CPU	16000000UL
 #define FOSC	1843200UL
 #define BAUD	9600					// This has to be defined before including setbaud.h
 #define MYUBRR	(F_CPU / 16 / BAUD-1)
-//#define START	0x08
-//#define RESTART	0x10
-//#define SL_ACK	0x18
-//#define MT_DATA_ACK 0x28
-//#define MR_SLA_ACK	0x40
 
 #include <asf.h>
 #include <avr/io.h>
@@ -48,18 +42,11 @@
 bool isLED = false;
 uint8_t seconds;
 
-//uint8_t BMP_SLA_W = 0xee;
-//uint8_t BMP_SLA_R = 0xef;
-
 static char data[128] = "";
-static uint32_t temperature;
+static double temperature;
 static double pressure;
-static double temp2;
-static double pressure2;
-static double a, inHg;
 static uint16_t count;
 static uint16_t elevation = 155.5; // Location elevation in meters
-//uint32_t temperature;
 
 struct datetime {
 	uint8_t seconds;
@@ -71,13 +58,11 @@ struct datetime {
 	
 	} datetime;
 	
-//inline void twiError(uint8_t);
 uint8_t getBMP_ID(void);
 void getBMPcoefficients(void);
-uint32_t getBMPtemp(void);
-uint32_t getBMPpressure(void);
+double getBMPtemp(void);
+double getBMPpressure(uint16_t);
 void BMPreset(void);
-//inline void calculateBMPtemp(uint32_t);
 void init_USART0(uint8_t);
 void sendUART0data(char strData[], uint8_t size);
 void toggleLED(void);
@@ -163,31 +148,20 @@ ISR(TIMER1_COMPA_vect) {
 			}	
 		}
 	}
-
 	
 	count++;
 	
 	if (count >= 900) { //Every 15 minutes
-	
+		
 		temperature = getBMPtemp();
-		temp2 = (double)temperature / 10;
-		
-		pressure = getBMPpressure();
-		
-		a = 1 - (double)elevation/44330;
-		a = pow(a, 5.255);
-		
-		pressure2 = pressure / a;
-		inHg = pressure2 * 0.0002953;
-
-		//1 pascal is equal to 0.000295299830714 inHg
-	
+		pressure = getBMPpressure(elevation);
+			
 		memset(data, 0, 128);
-		sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temp2, inHg);
+		sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure);
 		sendUART0data(data, sizeof(data));
+	
 		count = 0;
-	}
-		
+	}	
 }
 
 int main (void)
@@ -254,23 +228,13 @@ int main (void)
 	
 	getBMPcoefficients();
 	
-		temperature = getBMPtemp();
-		temp2 = (double)temperature / 10;
+	temperature = getBMPtemp();	
+	pressure = getBMPpressure(elevation);
 		
-		pressure = getBMPpressure();
-		
-		a = 1 - (double)elevation/44330;
-		a = pow(a, 5.255);
-		
-		pressure2 = pressure / a;
-		inHg = pressure2 * 0.0002953;
+	memset(data, 0, 128);
+	sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
+	sendUART0data(data, sizeof(data));
 
-		//1 pascal is equal to 0.000295299830714 inHg
-		
-		memset(data, 0, 128);
-		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temp2, inHg);
-		sendUART0data(data, sizeof(data));	
-	
 	while(1) {
 		 		
 	}
