@@ -4,6 +4,8 @@
 
 src\press_sensor.c
 
+src\uv_sensor.c
+
 src\ASF\common\services\clock\mega\sysclk.c
 
 src\main.c

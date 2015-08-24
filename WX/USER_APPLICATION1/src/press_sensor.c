@@ -57,21 +57,21 @@ uint8_t getBMP_ID(void) {
 	while ( !(TWCR & (1<<TWINT) ) );		// Wait for Start to be transmitted
 	
 	if ( (TWSR & 0xf8) != START)
-	twiError(0);
+	return 0xba;
 	
 	TWDR = BMP_SLA_W;						// Send the slave module address + write bit
 	TWCR = (1<<TWINT) | (1<<TWEN);			// Transmit the address and wait
 	while (!(TWCR & (1<<TWINT)));
 	
 	if ( (TWSR & 0xf8) != SL_ACK)			// Look for slave ACK
-	twiError(1);
+	return 0xbb;
 	
 	TWDR = 0xd0;							// Load and send address of the BMP ID register which should contain 0x55
 	TWCR = (1<<TWINT) | (1<<TWEN );
 	while (!(TWCR & (1<<TWINT)));
 	
 	if ( (TWSR & 0xf8) != MT_DATA_ACK)		// Look for slave ACK
-	twiError(2);
+	return 0xbc;
 	
 	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);		// send Repeated Start and wait...
 	while (!(TWCR & (1<<TWINT)));
@@ -81,7 +81,7 @@ uint8_t getBMP_ID(void) {
 	while (!(TWCR & (1<<TWINT)));
 	
 	if ( (TWSR & 0xf8) != MR_SLA_ACK)			 // Look for slave ACK
-	twiError(4);
+	return 0xbd;
 	
 	TWCR = (0<<TWSTA) | (0<<TWSTO) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN);		// send a RESTART and return a NACK
 	

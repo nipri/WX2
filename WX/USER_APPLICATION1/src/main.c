@@ -39,7 +39,9 @@
 #include <inttypes.h>
 #include <math.h>
 
-bool isLED = false;
+static bool isLED = false;
+static bool isPressureSensorPresent = false;
+static bool isLightSensorPresent = false;
 uint8_t seconds;
 
 static char data[128] = "";
@@ -58,11 +60,16 @@ struct datetime {
 	
 	} datetime;
 	
-uint8_t getBMP_ID(void);
-void getBMPcoefficients(void);
-double getBMPtemp(void);
-double getBMPpressure(uint16_t);
-void BMPreset(void);
+extern uint8_t getBMP_ID(void);
+extern void getBMPcoefficients(void);
+extern double getBMPtemp(void);
+extern double getBMPpressure(uint16_t);
+extern void BMPreset(void);
+
+extern uint8_t getSI_PartID(void);
+extern uint8_t getSI_RevID(void);
+extern uint8_t getSI_SeqID(void);
+
 void init_USART0(uint8_t);
 void sendUART0data(char strData[], uint8_t size);
 void toggleLED(void);
@@ -148,11 +155,13 @@ ISR(TIMER1_COMPA_vect) {
 			}	
 		}
 	}
+
 	
-	count++;
+//	count++;
 	
-	if (count >= 900) { //Every 15 minutes
-		
+//	if ( (count >= 900) && (isPressureSensorPresent) ) { //Every 15 minutes
+	if (isPressureSensorPresent) {
+	
 		temperature = getBMPtemp();
 		pressure = getBMPpressure(elevation);
 			
@@ -160,14 +169,14 @@ ISR(TIMER1_COMPA_vect) {
 		sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure);
 		sendUART0data(data, sizeof(data));
 	
-		count = 0;
+//		count = 0;
 	}	
+
 }
 
 int main (void)
 {
-	
-	uint8_t bmpID;
+	uint8_t bmpID, si_PartID, si_RevID, si_SeqID;
 //	board_init();
 
 // Set up clock
@@ -222,18 +231,39 @@ int main (void)
 	sei(); // May want to move this down later on
 	
 	bmpID = getBMP_ID();
-	memset (data, 0, 128);
-	sprintf(data, "BMP ID: %4x \r\n", bmpID);
-	sendUART0data(data, sizeof(data));
 	
-	getBMPcoefficients();
+	if ( (bmpID == 0xba) || (bmpID == 0xbb) )  {
+		memset (data, 0, 128);
+		sprintf(data, "Pressure Sensor not responding\r\n");
+		sendUART0data(data, sizeof(data));
+		isPressureSensorPresent = false;
+	} else {
+		memset (data, 0, 128);
+		sprintf(data, "BMP ID: %4x \r\n", bmpID);
+		sendUART0data(data, sizeof(data));
+		isPressureSensorPresent = true;
+	}
 	
-	temperature = getBMPtemp();	
-	pressure = getBMPpressure(elevation);
+//	si_PartID = getSI_PartID();
+//	_delay_ms(1);
+//	si_RevID = getSI_RevID();
+//	_delay_ms(1);
+//	si_SeqID = getSI_SeqID();
+	
+//	memset (data, 0, 128);
+//	sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
+//	sendUART0data(data, sizeof(data));
+	
+	if (isPressureSensorPresent) {
+		getBMPcoefficients();
+	
+		temperature = getBMPtemp();	
+		pressure = getBMPpressure(elevation);
 		
-	memset(data, 0, 128);
-	sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
-	sendUART0data(data, sizeof(data));
+		memset(data, 0, 128);
+		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
+		sendUART0data(data, sizeof(data));
+	}
 
 	while(1) {
 		 		
