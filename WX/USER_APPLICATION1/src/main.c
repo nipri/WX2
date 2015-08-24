@@ -244,15 +244,23 @@ int main (void)
 		isPressureSensorPresent = true;
 	}
 	
-//	si_PartID = getSI_PartID();
-//	_delay_ms(1);
-//	si_RevID = getSI_RevID();
-//	_delay_ms(1);
-//	si_SeqID = getSI_SeqID();
+	si_PartID = getSI_PartID();
 	
-//	memset (data, 0, 128);
-//	sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
-//	sendUART0data(data, sizeof(data));
+	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
+		memset (data, 0, 128);
+		sprintf(data, "Light Sensor not responding\r\n");
+		sendUART0data(data, sizeof(data));
+		isLightSensorPresent = false;	 
+	} else {
+		_delay_ms(1);
+		si_RevID = getSI_RevID();
+		_delay_ms(1);
+		si_SeqID = getSI_SeqID();
+
+		memset (data, 0, 128);
+		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
+		sendUART0data(data, sizeof(data));				
+	}
 	
 	if (isPressureSensorPresent) {
 		getBMPcoefficients();
