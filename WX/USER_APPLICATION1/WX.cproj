@@ -239,6 +239,9 @@
     <Compile Include="src\uv_sensor.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="src\uv_sensor.h">
+      <SubType>compile</SubType>
+    </Compile>
     <None Include="src\ASF\mega\drivers\cpu\mega_reset_cause.h">
       <SubType>compile</SubType>
     </None>

@@ -65,6 +65,7 @@ extern void getBMPcoefficients(void);
 extern double getBMPtemp(void);
 extern double getBMPpressure(uint16_t);
 extern void BMPreset(void);
+extern uint8_t SI_writeHwKey(void);
 
 extern uint8_t getSI_PartID(void);
 extern uint8_t getSI_RevID(void);
@@ -112,17 +113,22 @@ inline void toggleLED(void) {
 }
 
 // Will eventually handle the rain gauge
-ISR(INT0_vect) {
+ISR(INT2_vect) {
 	toggleLED();
 }
 
 // Will eventually handle the anemometer magnetic reed switch
-ISR(INT1_vect) {
+ISR(INT3_vect) {
 	
 }
 
 // Will eventually handle the AS3935
-ISR(INT2_vect) {
+ISR(INT4_vect) {
+	
+}
+
+// Will eventually handle the si1145 UV Sensor
+ISR(INT5_vect) {
 	
 }
 
@@ -176,7 +182,7 @@ ISR(TIMER1_COMPA_vect) {
 
 int main (void)
 {
-	uint8_t bmpID, si_PartID, si_RevID, si_SeqID;
+	uint8_t bmpID, si_PartID, si_RevID, si_SeqID, si_hwKey;
 //	board_init();
 
 // Set up clock
@@ -191,13 +197,17 @@ int main (void)
 	
 //Set up external interrupts
 
-	// INT0 for rain gauge
-	EICRA = 0x20;	// Enable falling edge interrupt on INT2
-	EIMSK = 0x04;	// Mask INT2
-	
-	// INT1 for anemometer
+	// INT2 for rain gauge
+	// INT3 for anemometer
+	EICRA = 0xa0;	// Enable falling edge interrupts on INT3 and INT2	
 
-	// INT2 for the AS3935
+	// INT4 for the AS3935
+	// INT5 for the UV sensor
+	EICRB = 0x0a; // Enable falling edge int on INT5 and INT4
+	
+	// Interrupt mask
+	EIMSK = 0x3c;	// Mask the above mentioned interrupts
+	
 	
 // Set up the TWI
 	TWSR = (TWPS1 << 0) | (TWPS0 << 0);
@@ -229,29 +239,38 @@ int main (void)
 
 	
 	sei(); // May want to move this down later on
-	
+
 	bmpID = getBMP_ID();
 	
 	if ( (bmpID == 0xba) || (bmpID == 0xbb) )  {
+		
 		memset (data, 0, 128);
 		sprintf(data, "Pressure Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
 		isPressureSensorPresent = false;
+		
 	} else {
+		
 		memset (data, 0, 128);
 		sprintf(data, "BMP ID: %4x \r\n", bmpID);
 		sendUART0data(data, sizeof(data));
 		isPressureSensorPresent = true;
 	}
+
 	
 	si_PartID = getSI_PartID();
 	
 	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
+		
 		memset (data, 0, 128);
-		sprintf(data, "Light Sensor not responding\r\n");
+//		sprintf(data, "Light Sensor not responding\r\n");
+		sprintf(data, "SI UV Sensor Part ID: %x\r\n", si_PartID);
 		sendUART0data(data, sizeof(data));
 		isLightSensorPresent = false;	 
+		
 	} else {
+		
+		isLightSensorPresent = true;
 		_delay_ms(1);
 		si_RevID = getSI_RevID();
 		_delay_ms(1);
@@ -259,7 +278,14 @@ int main (void)
 
 		memset (data, 0, 128);
 		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
-		sendUART0data(data, sizeof(data));				
+		sendUART0data(data, sizeof(data));	
+		
+		si_hwKey= SI_writeHwKey();
+
+		memset (data, 0, 128);
+		sprintf(data, "Write and Verify Si1145 HW Key: %x\r\n", si_hwKey);
+		sendUART0data(data, sizeof(data));
+						
 	}
 	
 	if (isPressureSensorPresent) {
