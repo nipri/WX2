@@ -55,6 +55,30 @@
 #define ALS_AUTO				0x0e
 #define PSALS_AUTO				0x0f
 
+//Parameter Values
+#define I2C_ADDR				0x00
+#define CHLIST					0x01
+#define PSLED12_SELECT			0x02
+#define PSLED3_SELECT			0x03
+#define PS_ENCODING				0x05
+#define ALS_ENCODING			0x06
+#define PS1_ADCMUX				0x07
+#define PS2_ADCMUX				0x08
+#define PS3_ADCMUX				0x09
+#define PS_ADC_COUNTER			0x0a
+#define PS_ADC_GAIN				0x0b
+#define PS_ADC_MISC				0x0c
+#define ALS_IR_ADCMUX			0x0e
+#define AUX_ADCMUX				0x0f
+#define ALS_VIS_ADC_COUNTER		0x10	
+#define ALS_VIS_ADC_GAIN		0x11
+#define ALS_VIS_ADC_MISC		0x12
+#define LED_REC					0x1c
+#define ALS_IR_ADC_COUNTER		0x1d
+#define ALS_IR_ADC_GAIN			0x1e
+#define ALS_IR_ADC_MISC			0x1f
+
+
 //Responses: errors
 #define RESP_INVALID_SETTING	0x80
 #define RESP_PS1_ADC_OFLOW		0x88
