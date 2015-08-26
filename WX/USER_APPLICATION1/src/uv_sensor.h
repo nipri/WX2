@@ -40,7 +40,7 @@
 
 //Commands
 #define PARAM_QUERY				0x80	// Bitwise OR this with a parameter value and write to REG_COMMAND; read result from REG_PARAM_RD
-#define PARAM_SET				0xc0    // Bitwise OR this with a parameter value and write to REG_COMMAND; 
+#define PARAM_SET				0xa0    // Bitwise OR this with a parameter value and write to REG_COMMAND; 
 #define NOP						0x00
 #define RESET					0x01			
 #define BUSADDR					0x02
@@ -55,7 +55,7 @@
 #define ALS_AUTO				0x0e
 #define PSALS_AUTO				0x0f
 
-//Parameter Values
+//Parameter Command Offsets
 #define I2C_ADDR				0x00
 #define CHLIST					0x01
 #define PSLED12_SELECT			0x02
@@ -78,6 +78,12 @@
 #define ALS_IR_ADC_GAIN			0x1e
 #define ALS_IR_ADC_MISC			0x1f
 
+// Parameter CHLIST values
+#define EN_ALS_VIS				0x10
+#define EN_UV					0x80
+#define EN_AUX					0x40
+#define EN_ALS_IR				0x20
+
 
 //Responses: errors
 #define RESP_INVALID_SETTING	0x80
@@ -88,5 +94,32 @@
 #define RESP_ALS_IR_ADC_OFLOW	0x8d
 #define RESP_AUX_ADC_OFLOW		0x8e
 
+//I2C Register Bits... Interrupt Control:
+#define INT_OE					0x01
+#define PS3_IE					0x10
+#define PS2_IE					0x04
+#define PS1_IE					0x02
+#define ALS_IE					0x01
+
+//I2C Register bits... Interrupt Status: Write a '1' to clear the interrupt, must be done in software
+#define CMD_INT					0x20
+#define PS3_INT					0x10
+#define PS2_INT					0x08
+#define PS1_INT					0x04
+#define ALS_INT1				0x02
+#define ALS_INT0				0x01
+
+//I2C Register Bits... Chip Status
+#define RUNNING					0x04
+#define SUSPEND					0x02
+#define SLEEP					0x01
+
+//I2C Register bits... Measurement Rate (16 bit value)
+	// 1 second rate
+	//#define MEAS_RATE0				0x00
+	//#define MEAS_RATE1				0x7d
+	// 0.5s rate
+	#define MEAS_RATE0				0x80
+	#define MEAS_RATE1				0x3e
 
 
