@@ -51,7 +51,7 @@ static double temperature;
 static double pressure;
 static uint16_t count;
 static uint16_t elevation = 155.5; // Location elevation in meters
-static uint16_t rawLightData;
+static uint16_t rawLightData, uvIndex;
 
 struct datetime {
 	uint8_t seconds;
@@ -70,7 +70,8 @@ extern double getBMPpressure(uint16_t);
 extern void BMPreset(void);
 
 //extern uint8_t SI_writeHwKey(void);
-extern uint8_t SI_writeI2Creg(uint8_t whichReg, uint8_t data);
+extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
+extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
 extern uint16_t SI_readI2Cword(uint8_t whichReg);
 
 extern uint8_t getSI_PartID(void);
@@ -136,9 +137,10 @@ ISR(INT4_vect) {
 // Will eventually handle the si1145 UV Sensor
 ISR(INT5_vect) {
 	toggleLED();
-	SI_writeI2Creg(REG_IRQ_STATUS, 0x03);
+	SI_writeI2Cbyte(REG_IRQ_STATUS, 0x03);
 	
 	rawLightData = SI_readI2Cword(REG_ALS_VIS_DATA0);
+	uvIndex = SI_readI2Cword(REG_AUXDAT0_UVI0);
 }
 
 // Compare ISR for 8 bit Timer 0
@@ -192,6 +194,7 @@ ISR(TIMER1_COMPA_vect) {
 int main (void)
 {
 	uint8_t bmpID, si_PartID, si_RevID, si_SeqID, si_hwKey, rValue;
+	uint16_t wValue;
 //	board_init();
 
 // Set up clock
@@ -267,13 +270,12 @@ int main (void)
 	}
 
 	
-	si_PartID = getSI_PartID();
+	si_PartID = SI_readI2Cbyte(REG_PART_ID);
 	
 	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
 		
 		memset (data, 0, 128);
-//		sprintf(data, "Light Sensor not responding\r\n");
-		sprintf(data, "SI UV Sensor Part ID: %x\r\n", si_PartID);
+		sprintf(data, "Light Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
 		isLightSensorPresent = false;	 
 		
@@ -281,42 +283,50 @@ int main (void)
 		
 		isLightSensorPresent = true;
 		_delay_ms(1);
-		si_RevID = getSI_RevID();
+		si_RevID = SI_readI2Cbyte(REG_REV_ID);
 		_delay_ms(1);
-		si_SeqID = getSI_SeqID();
+		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
 		memset (data, 0, 128);
 		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
 		sendUART0data(data, sizeof(data));	
 		
-//		si_hwKey= SI_writeHwKey();
-		si_hwKey= SI_writeI2Creg(REG_HW_KEY, HW_KEY);
+		si_hwKey= SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
 		_delay_ms(10);
 		memset (data, 0, 128);
 		sprintf(data, "Write and Verify Si1145 HW Key: %x\r\n", si_hwKey);
 		sendUART0data(data, sizeof(data));
 		
-//		Set the measurement rate
-		rValue = SI_writeI2Creg(REG_MEAS_RATE0, MEAS_RATE0);
+// Set the UCOEF registers
+		rValue = SI_writeI2Cbyte(REG_UCOEF0, 0x0);
 		_delay_ms(10);
-		rValue = SI_writeI2Creg(REG_MEAS_RATE1, MEAS_RATE1);
+		rValue = SI_writeI2Cbyte(REG_UCOEF1, 0x02);
+		_delay_ms(10);
+		rValue = SI_writeI2Cbyte(REG_UCOEF2, 0x89);
+		_delay_ms(10);
+		rValue = SI_writeI2Cbyte(REG_UCOEF3, 0x29);
+		_delay_ms(10);
+
+//		Set the measurement rate
+		rValue = SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
+		_delay_ms(10);
+		rValue = SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
 
 		_delay_ms(10);
 //		 Set up the interrupts
-		SI_writeI2Creg(REG_INT_CFG, INT_OE);
+		SI_writeI2Cbyte(REG_INT_CFG, INT_OE);
 		_delay_ms(10);
-		SI_writeI2Creg(REG_IRQ_ENABLE, ALS_IE);
+		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
 		_delay_ms(10);
 //		Set the CHLIST parameter
-		rValue = SI_writeI2Creg(REG_PARAM_WR, EN_ALS_VIS);	
-		
+		rValue = SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
 
 		_delay_ms(10);
-		rValue = SI_writeI2Creg(REG_COMMAND, (PARAM_SET | CHLIST));		
-			
+		rValue = SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
+				
 		_delay_ms(10);
-//		State autonomous ALS loop
-		rValue = SI_writeI2Creg(REG_COMMAND, ALS_AUTO);
+//		Start autonomous ALS loop
+		rValue = SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
 
 	}
 	
@@ -343,7 +353,7 @@ int main (void)
 		
 		if (isLightSensorPresent) {
 			memset(data, 0, 128);
-			sprintf(data, "Ambient Light Level @time: %d:%d:%d	%4x \r\n", datetime.hours, datetime.minutes, datetime.seconds, rawLightData);
+			sprintf(data, "Ambient Light Level and Sensor Vdd @time: %d:%d:%d	%4x		%4x \r\n", datetime.hours, datetime.minutes, datetime.seconds, rawLightData, uvIndex);
 			sendUART0data(data, sizeof(data));
 		}
 		

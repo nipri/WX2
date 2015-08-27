@@ -73,6 +73,7 @@
 #define ALS_VIS_ADC_COUNTER		0x10	
 #define ALS_VIS_ADC_GAIN		0x11
 #define ALS_VIS_ADC_MISC		0x12
+#define ADC_OFFSET				0x1a	// NOT documented in datasheet
 #define LED_REC					0x1c
 #define ALS_IR_ADC_COUNTER		0x1d
 #define ALS_IR_ADC_GAIN			0x1e
@@ -83,6 +84,13 @@
 #define EN_UV					0x80
 #define EN_AUX					0x40
 #define EN_ALS_IR				0x20
+
+// Parameter AUX_ADCMUX values
+#define AUX_ADCMUX_TEMP			0x65
+#define AUX_ADCMUX_VDD			0x75
+
+// Parameter ADC_OFFSET Value
+#define ADC_OFFSET_VALUE		0x0
 
 
 //Responses: errors
