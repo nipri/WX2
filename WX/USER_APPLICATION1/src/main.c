@@ -81,6 +81,8 @@ extern uint8_t getSI_SeqID(void);
 void init_USART0(uint8_t);
 void sendUART0data(char strData[], uint8_t size);
 void toggleLED(void);
+void flashLED2(uint8_t);
+
 
 
 inline void init_USART0(uint8_t ubrr){
@@ -117,6 +119,21 @@ inline void toggleLED(void) {
 		isLED = true;
 		PORTB &= 0x7f;
 	}
+}
+
+inline void flashLED2(uint8_t data) {
+	
+	int i;
+	
+	for (i=0; i<data; i++){
+		
+		PORTB &= 0xbf;
+		_delay_ms(200);
+		PORTB |= 0x40;
+		_delay_ms(200);
+	}
+	
+	PORTB &= 0x40;
 }
 
 // Will eventually handle the rain gauge
@@ -340,7 +357,10 @@ int main (void)
 		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
 		sendUART0data(data, sizeof(data));
 	}
-
+	
+	
+	flashLED2(10);
+		
 	while(1) {
 		
 		_delay_ms(1000);
