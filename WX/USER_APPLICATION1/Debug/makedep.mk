@@ -2,6 +2,8 @@
 # Automatically-generated file. Do not edit or delete the file
 ################################################################################
 
+src\crc8.c
+
 src\press_sensor.c
 
 src\uv_sensor.c
