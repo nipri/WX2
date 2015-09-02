@@ -44,14 +44,12 @@
 static bool isLED = false;
 static bool isPressureSensorPresent = false;
 static bool isLightSensorPresent = false;
-static uint8_t seconds;
 uint8_t rxByteCount, rxPacket[16], byteDelayCount;
 
 static char data[128] = "";
 
 static double temperature;
 static double pressure;
-static uint16_t count;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
 
@@ -70,25 +68,20 @@ extern void getBMPcoefficients(void);
 extern double getBMPtemp(void);
 extern double getBMPpressure(uint16_t);
 extern void BMPreset(void);
+
 extern uint8_t crc8(uint8_t data[], uint8_t length);
 
-//extern uint8_t SI_writeHwKey(void);
 extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
 extern uint16_t SI_readI2Cword(uint8_t whichReg);
 
-extern uint8_t getSI_PartID(void);
-extern uint8_t getSI_RevID(void);
-extern uint8_t getSI_SeqID(void);
-
 void init_USART0(uint8_t);
-
 void sendUART0data(char strData[], uint8_t size);
-
 void toggleLED(void);
 void flashLED2(uint8_t);
-void getElevationPacket(uint8_t);
 void getTimePacket(uint8_t);
+void getElevationPacket(uint8_t);
+
 
 
 
@@ -140,6 +133,69 @@ inline void flashLED2(uint8_t data) {
 	}
 	
 	PORTB &= 0x40;
+}
+
+
+void getTimePacket(uint8_t byteCount) {
+	uint8_t crc;
+	
+	byteDelayCount = 0;
+	
+	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+//	while(rxByteCount < byteCount-1);
+	
+	rxByteCount = 0;
+				
+	if (byteDelayCount >= 2) {
+		sprintf(data, "Timeout!\r\n");
+		sendUART0data(data, 10);
+	} else {	
+		crc = crc8(rxPacket, byteCount-1);
+		
+		if (crc != rxPacket[4]) {
+			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+			sendUART0data(data, 32);
+		} else {
+			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+			sendUART0data(data, 32);
+			
+			datetime.hours = rxPacket[1];
+			datetime.minutes = rxPacket[2];
+			datetime.seconds = rxPacket[3];
+			
+		}
+	}		
+}
+
+void getElevationPacket(uint8_t byteCount) {
+	
+	uint8_t crc;
+	
+	byteDelayCount = 0;
+	
+	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	//	while(rxByteCount < byteCount-1);
+	
+	rxByteCount = 0;
+	
+	if (byteDelayCount >= 2) {
+		sprintf(data, "Timeout!\r\n");
+		sendUART0data(data, 10);
+		} else {
+		crc = crc8(rxPacket, byteCount-1);
+		
+		if (crc != rxPacket[3]) {
+			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+			sendUART0data(data, 32);
+			} else {
+			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+			sendUART0data(data, 32);
+			
+			elevation = (rxPacket[1] << 8) + rxPacket[2];
+			
+		}
+	}
+	
 }
 
 // Will eventually handle the rain gauge
@@ -232,72 +288,10 @@ ISR(USART0_RX_vect) {
 }
 
 
-void getTimePacket(uint8_t byteCount) {
-	uint8_t crc;
-	
-	byteDelayCount = 0;
-	
-	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-//	while(rxByteCount < byteCount-1);
-	
-	rxByteCount = 0;
-				
-	if (byteDelayCount >= 2) {
-		sprintf(data, "Timeout!\r\n");
-		sendUART0data(data, 10);
-	} else {	
-		crc = crc8(rxPacket, byteCount-1);
-		
-		if (crc != rxPacket[4]) {
-			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
-			sendUART0data(data, 32);
-		} else {
-			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
-			sendUART0data(data, 32);
-			
-			datetime.hours = rxPacket[1];
-			datetime.minutes = rxPacket[2];
-			datetime.seconds = rxPacket[3];
-			
-		}
-	}		
-}
-
-void getElevationPacket(uint8_t byteCount) {
-	
-	uint8_t crc;
-	
-	byteDelayCount = 0;
-	
-	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	//	while(rxByteCount < byteCount-1);
-	
-	rxByteCount = 0;
-	
-	if (byteDelayCount >= 2) {
-		sprintf(data, "Timeout!\r\n");
-		sendUART0data(data, 10);
-		} else {
-		crc = crc8(rxPacket, byteCount-1);
-		
-		if (crc != rxPacket[3]) {
-			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 32);
-			} else {
-			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 32);
-			
-			elevation = (rxPacket[1] << 8) + rxPacket[2];
-			
-		}
-	}
-	
-}
 
 int main (void)
 {
-	uint8_t bmpID, si_PartID, si_RevID, si_SeqID, si_hwKey, rValue;
-	uint16_t wValue;
+	uint8_t bmpID, si_PartID, si_RevID, si_SeqID;
 //	board_init();
 
 // Set up clock
@@ -391,29 +385,26 @@ int main (void)
 		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
 		memset (data, 0, 128);
-//		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
-//		sendUART0data(data, sizeof(data));	
+		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
+		sendUART0data(data, sizeof(data));	
 		
-		si_hwKey= SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
+		SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
 		_delay_ms(10);
-//		memset (data, 0, 128);
-//		sprintf(data, "Write and Verify Si1145 HW Key: %x\r\n", si_hwKey);
-//		sendUART0data(data, sizeof(data));
 		
 // Set the UCOEF registers
-		rValue = SI_writeI2Cbyte(REG_UCOEF0, 0x0);
+		SI_writeI2Cbyte(REG_UCOEF0, 0x0);
 		_delay_ms(10);
-		rValue = SI_writeI2Cbyte(REG_UCOEF1, 0x02);
+		SI_writeI2Cbyte(REG_UCOEF1, 0x02);
 		_delay_ms(10);
-		rValue = SI_writeI2Cbyte(REG_UCOEF2, 0x89);
+		SI_writeI2Cbyte(REG_UCOEF2, 0x89);
 		_delay_ms(10);
-		rValue = SI_writeI2Cbyte(REG_UCOEF3, 0x29);
+		SI_writeI2Cbyte(REG_UCOEF3, 0x29);
 		_delay_ms(10);
 
 //		Set the measurement rate
-		rValue = SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
+		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
 		_delay_ms(10);
-		rValue = SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
+		SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
 
 		_delay_ms(10);
 //		 Set up the interrupts
@@ -422,14 +413,14 @@ int main (void)
 		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
 		_delay_ms(10);
 //		Set the CHLIST parameter
-		rValue = SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
+		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
 
 		_delay_ms(10);
-		rValue = SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
 				
 		_delay_ms(10);
 //		Start autonomous ALS loop
-		rValue = SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
+		SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
 
 	}
 	
