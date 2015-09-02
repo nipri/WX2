@@ -45,11 +45,9 @@ static bool isLED = false;
 static bool isPressureSensorPresent = false;
 static bool isLightSensorPresent = false;
 static uint8_t seconds;
-static uint8_t rxByteCount, rxPacket[16], byteDelayCount;
-static uint8_t rxPacket[16], txPacket[4];
+uint8_t rxByteCount, rxPacket[16], byteDelayCount;
 
-//static char data[128] = "";
-static uint8_t data[128] = "";
+static char data[128] = "";
 
 static double temperature;
 static double pressure;
@@ -85,9 +83,7 @@ extern uint8_t getSI_SeqID(void);
 
 void init_USART0(uint8_t);
 
-//void sendUART0data(char strData[], uint8_t size);
-void sendUART0data(uint8_t strData[], uint8_t size);
-
+void sendUART0data(char strData[], uint8_t size);
 
 void toggleLED(void);
 void flashLED2(uint8_t);
@@ -102,7 +98,7 @@ inline void init_USART0(uint8_t ubrr){
 	UBRR0L = ubrr;
 	
 	//enable RX, the RX Complete Interrupt, and TX
-	UCSR0B = 0x98;
+	UCSR0B = 0x98; // 0x98 to enable RX int
 	
 	//set frame parameters
 	UCSR0C = 0x06;
@@ -110,9 +106,7 @@ inline void init_USART0(uint8_t ubrr){
 }
 
 
-//inline void sendUART0data(char strData[], uint8_t size) {
-void sendUART0data(uint8_t strData[], uint8_t size) {
-	
+inline void sendUART0data(char strData[], uint8_t size) {	
 	int i;
 	
 	for (i=0; i<size; i++) {
@@ -165,7 +159,7 @@ ISR(INT4_vect) {
 
 // Will eventually handle the si1145 UV Sensor
 ISR(INT5_vect) {
-	toggleLED();
+//	toggleLED();
 	SI_writeI2Cbyte(REG_IRQ_STATUS, 0x03);
 	
 	rawLightData = SI_readI2Cword(REG_ALS_VIS_DATA0);
@@ -202,22 +196,17 @@ ISR(TIMER1_COMPA_vect) {
 		}
 	}
 	
-	byteDelayCount++;
-	
-				txPacket[0] = 0xaa;
-				txPacket[1] = 0xbb;
-				txPacket[2] = 0xcc;
-				txPacket[3] = 0xdd;
-				sendUART0data(txPacket, 4);
-/*
-	count++;
+	byteDelayCount ++;
+//	count++;
 	
 //	if (count >= 900) { //Every 15 minutes
-	if (count >= 10) { //Every 10 seconds
+//	if (count >= 10) { //Every 10 seconds
 	
 		if (isPressureSensorPresent) {
+			temperature = getBMPtemp();
+			pressure = getBMPpressure(elevation);
 			memset(data, 0, 128);
-			sprintf(data, "Temperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure);
+			sprintf(data, "\r\nTemperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure);
 			sendUART0data(data, sizeof(data));
 		}
 		
@@ -227,16 +216,51 @@ ISR(TIMER1_COMPA_vect) {
 			sendUART0data(data, sizeof(data));
 		}
 	
-		count = 0;
-	}	
-*/
+//		count = 0;
+//	}	
 
 }
 
+
 ISR(USART0_RX_vect) {
 	
-	rxPacket[rxByteCount] = UDR0;
+	rxPacket[rxByteCount] = UDR0;	
+//	sprintf(data, "RXpacket %d:	%x\r\n", rxByteCount, rxPacket[rxByteCount]);
+//	sprintf(data, "UCSR0A: %x\r\n", UCSR0A);
+//	sendUART0data(data, 20);
 	rxByteCount++;
+}
+
+
+void getTimePacket(uint8_t byteCount) {
+	uint8_t crc;
+	
+	byteDelayCount = 0;
+	
+	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+//	while(rxByteCount < byteCount-1);
+	
+	rxByteCount = 0;
+				
+	if (byteDelayCount >= 2) {
+		sprintf(data, "Timeout!\r\n");
+		sendUART0data(data, 10);
+	} else {	
+		crc = crc8(rxPacket, byteCount-1);
+		
+		if (crc != rxPacket[4]) {
+			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+			sendUART0data(data, 32);
+		} else {
+			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+			sendUART0data(data, 32);
+			
+			datetime.hours = rxPacket[1];
+			datetime.minutes = rxPacket[2];
+			datetime.seconds = rxPacket[3];
+			
+		}
+	}		
 }
 
 void getElevationPacket(uint8_t byteCount) {
@@ -245,40 +269,28 @@ void getElevationPacket(uint8_t byteCount) {
 	
 	byteDelayCount = 0;
 	
-	while( (byteDelayCount < 2) && (byteCount < 3) );
+	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	//	while(rxByteCount < byteCount-1);
 	
 	rxByteCount = 0;
 	
 	if (byteDelayCount >= 2) {
-		txPacket[0] = 0x11;
-		txPacket[1] = 0x11;
-		txPacket[2] = 0x11;
-		txPacket[3] = 0x55;
-		sendUART0data(txPacket, 4);
-	} else {
-		
-		crc = crc8(rxPacket, 3);
+		sprintf(data, "Timeout!\r\n");
+		sendUART0data(data, 10);
+		} else {
+		crc = crc8(rxPacket, byteCount-1);
 		
 		if (crc != rxPacket[3]) {
-			txPacket[0] = 0x11;
-			txPacket[1] = 0x22;
-			txPacket[2] = crc;
-			txPacket[3] = rxPacket[3];
-			sendUART0data(txPacket, 4);
-		} else {
-					
-			elevation = (rxPacket[2] << 8) + rxPacket[1];
+			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+			sendUART0data(data, 32);
+			} else {
+			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+			sendUART0data(data, 32);
 			
-			txPacket[0] = 0xaa;
-			txPacket[1] = 0xbb;
-			txPacket[2] = 0xcc;
-			txPacket[3] = 0xdd;
-			sendUART0data(txPacket, 4);
-		}						
-	}		
-}
-
-void getTimePacket(uint8_t byteCount) {
+			elevation = (rxPacket[1] << 8) + rxPacket[2];
+			
+		}
+	}
 	
 }
 
@@ -347,16 +359,16 @@ int main (void)
 	
 	if ( (bmpID == 0xba) || (bmpID == 0xbb) )  {
 		
-//		memset (data, 0, 128);
-//		sprintf(data, "Pressure Sensor not responding\r\n");
-//		sendUART0data(data, sizeof(data));
+		memset (data, 0, 128);
+		sprintf(data, "Pressure Sensor not responding\r\n");
+		sendUART0data(data, sizeof(data));
 		isPressureSensorPresent = false;
 		
 	} else {
 		
-//		memset (data, 0, 128);
-//		sprintf(data, "BMP ID: %4x \r\n", bmpID);
-//		sendUART0data(data, sizeof(data));
+		memset (data, 0, 128);
+		sprintf(data, "BMP ID: %4x \r\n", bmpID);
+		sendUART0data(data, sizeof(data));
 		isPressureSensorPresent = true;
 	}
 
@@ -365,9 +377,9 @@ int main (void)
 	
 	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
 		
-//		memset (data, 0, 128);
-//		sprintf(data, "Light Sensor not responding\r\n");
-//		sendUART0data(data, sizeof(data));
+		memset (data, 0, 128);
+		sprintf(data, "Light Sensor not responding\r\n");
+		sendUART0data(data, sizeof(data));
 		isLightSensorPresent = false;	 
 		
 	} else {
@@ -427,16 +439,23 @@ int main (void)
 		temperature = getBMPtemp();	
 		pressure = getBMPpressure(elevation);
 		
-//		memset(data, 0, 128);
-//		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
-//		sendUART0data(data, sizeof(data));
+		memset(data, 0, 128);
+		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
+		sendUART0data(data, sizeof(data));
 	}
+	
+	rxByteCount = 0;
 		
 		
 	while(1) {
 		
-		if (rxByteCount>0) {
+		_delay_ms(1);
+		
+		if (rxByteCount > 0) {
 			
+			sprintf(data, "XXXXX\r\n");
+			sendUART0data(data, 7);
+	
 			switch(rxPacket[0]) {
 				
 				case 0xa0:		// Elevation packet
@@ -448,11 +467,10 @@ int main (void)
 				break;
 				
 				default:
+					rxByteCount = 0;
 				break;
-			}
+			} 
 			
-		}
-			
-		 		
+		}			 		
 	}
 }

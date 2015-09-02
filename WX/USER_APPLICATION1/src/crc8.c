@@ -13,16 +13,15 @@
 uint8_t crc8(uint8_t data[], uint8_t);
 void init_crc8(void);
 
-static uint8_t crc8_table[256];     /* 8-bit table */
-static uint8_t made_table=0;
+uint8_t crc8_table[256];     /* 8-bit table */
+static uint8_t made_table = 0;
 //static unsigned int data[5] = {0xaa,0xbb,0xcc,0xdd,0xee};
 
 void init_crc8(void) {
 
-	uint8_t i, j, crc;
+	uint16_t i;
+	uint8_t j, crc;
   
-	if (!made_table) {
-
 		for (i=0; i<256; i++) {
 
 			crc = i;
@@ -30,12 +29,10 @@ void init_crc8(void) {
 			for (j=0; j<8; j++)
 				crc = (crc << 1) ^ ((crc & 0x80) ? DI : 0);
 
-		crc8_table[i] = crc & 0xFF;
-		printf("table[%d] = %x\n", i, (int)crc);
+			crc8_table[i] = crc & 0xFF;
 		}
 
 	made_table=1;
-	}
 }
 
 uint8_t crc8(uint8_t data[], uint8_t length) {
@@ -45,19 +42,15 @@ uint8_t crc8(uint8_t data[], uint8_t length) {
 */
 
 	uint8_t i;
-	uint8_t j;
 	uint8_t crc = 0x0;
  
-	if (!made_table)
+	if (made_table == 0)
 		init_crc8();
 
 	for (i=0; i<length; i++) {
- 
-//		j = (crc^data[i]) & 0xff;
-//		crc = (crc8_table[j]^(crc<<8)) & 0xff;
 		crc = crc8_table[crc ^ data[i]];
 	}
-	return crc & 0xff;
+	return (crc & 0xff);
 }
 
 
