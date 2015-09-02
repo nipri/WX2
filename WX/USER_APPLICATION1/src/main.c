@@ -448,13 +448,10 @@ int main (void)
 		
 		
 	while(1) {
-		
-		_delay_ms(1);
-		
+			
 		if (rxByteCount > 0) {
 			
-			sprintf(data, "XXXXX\r\n");
-			sendUART0data(data, 7);
+			_delay_ms(10);
 	
 			switch(rxPacket[0]) {
 				
@@ -469,8 +466,7 @@ int main (void)
 				default:
 					rxByteCount = 0;
 				break;
-			} 
-			
+			} 	
 		}			 		
 	}
 }
