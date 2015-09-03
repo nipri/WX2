@@ -15,7 +15,6 @@ void init_crc8(void);
 
 uint8_t crc8_table[256];     /* 8-bit table */
 static uint8_t made_table = 0;
-//static unsigned int data[5] = {0xaa,0xbb,0xcc,0xdd,0xee};
 
 void init_crc8(void) {
 

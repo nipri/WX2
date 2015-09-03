@@ -92,6 +92,10 @@
 // Parameter ADC_OFFSET Value
 #define ADC_OFFSET_VALUE		0x0
 
+// Parameter ALS_VIS_ADC_MISC Values
+#define VIS_RANGE_NORMAL		0x0
+#define VIS_RANGE_HI			0x20		// divides gain by 14.5
+
 
 //Responses: errors
 #define RESP_INVALID_SETTING	0x80

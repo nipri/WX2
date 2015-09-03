@@ -26,7 +26,7 @@
  */
 
 
-#define FOSC	1843200UL
+//#define FOSC	1843200UL
 #define BAUD	9600					// This has to be defined before including setbaud.h
 #define MYUBRR	(F_CPU / 16 / BAUD-1)
 
@@ -81,6 +81,7 @@ void toggleLED(void);
 void flashLED2(uint8_t);
 void getTimePacket(uint8_t);
 void getElevationPacket(uint8_t);
+void getADCRangeSetPacket(uint8_t);
 
 
 
@@ -194,8 +195,49 @@ void getElevationPacket(uint8_t byteCount) {
 			elevation = (rxPacket[1] << 8) + rxPacket[2];
 			
 		}
-	}
+	}	
+}
+
+void getADCRangeSetPacket(uint8_t byteCount) {
 	
+	uint8_t crc;
+	
+	byteDelayCount = 0;
+	
+	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	//	while(rxByteCount < byteCount-1);
+	
+	rxByteCount = 0;
+	
+	if (byteDelayCount >= 2) {
+		sprintf(data, "Timeout!\r\n");
+		sendUART0data(data, 10);
+		} else {
+		crc = crc8(rxPacket, byteCount-1);
+		
+		if (crc != rxPacket[2]) {
+			sprintf(data, "ADCRange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
+			sendUART0data(data, 32);
+			} else {
+			sprintf(data, "ADCrange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
+			sendUART0data(data, 32);
+			
+			SI_writeI2Cbyte(REG_COMMAND, ALS_PAUSE);
+			_delay_ms(10);
+			
+			if (rxPacket[1] == 1)
+				SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_HI);
+			else
+				SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_NORMAL);
+				
+			_delay_ms(10);
+			SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));
+				
+			_delay_ms(10);
+			//		Restart autonomous ALS loop
+			SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);		
+		}
+	}	
 }
 
 // Will eventually handle the rain gauge
@@ -215,7 +257,7 @@ ISR(INT4_vect) {
 
 // Will eventually handle the si1145 UV Sensor
 ISR(INT5_vect) {
-//	toggleLED();
+	toggleLED();
 	SI_writeI2Cbyte(REG_IRQ_STATUS, 0x03);
 	
 	rawLightData = SI_readI2Cword(REG_ALS_VIS_DATA0);
@@ -231,7 +273,7 @@ ISR(TIMER0_COMPA_vect) {
 // Will be used as an accurate seconds counter for timestamping and reading sensor data 
 ISR(TIMER1_COMPA_vect) {
 	
-	toggleLED();
+//	toggleLED();
 	
 	datetime.seconds++;
 	
@@ -319,8 +361,9 @@ int main (void)
 	
 	
 // Set up the TWI
-	TWSR = (TWPS1 << 0) | (TWPS0 << 0);
-	TWBR = 0x0b;
+	TWSR = (TWPS1 << 0) | (TWPS0 << 0); // TWPS Prescaler Bits = b00
+//	TWBR = 0x0b;
+	TWBR = 0x01;
 
 // Set up TC0
 	TCCR0A = 0x0;
@@ -379,9 +422,9 @@ int main (void)
 	} else {
 		
 		isLightSensorPresent = true;
-		_delay_ms(1);
+//		_delay_ms(1);
 		si_RevID = SI_readI2Cbyte(REG_REV_ID);
-		_delay_ms(1);
+//		_delay_ms(1);
 		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
 		memset (data, 0, 128);
@@ -389,36 +432,42 @@ int main (void)
 		sendUART0data(data, sizeof(data));	
 		
 		SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
-		_delay_ms(10);
+//		_delay_ms(10);
 		
 // Set the UCOEF registers
 		SI_writeI2Cbyte(REG_UCOEF0, 0x0);
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF1, 0x02);
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF2, 0x89);
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF3, 0x29);
-		_delay_ms(10);
+//		_delay_ms(10);
 
 //		Set the measurement rate
 		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
 
-		_delay_ms(10);
+//		_delay_ms(10);
 //		 Set up the interrupts
 		SI_writeI2Cbyte(REG_INT_CFG, INT_OE);
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
-		_delay_ms(10);
+//		_delay_ms(10);
 //		Set the CHLIST parameter
 		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
 
-		_delay_ms(10);
+//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
+		
+//		For ALS_VIS measurements... set for high sensitivity or high signal range
+//		_delay_ms(10);
+		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_HI);
+//		_delay_ms(10);
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));	
 				
-		_delay_ms(10);
+//		_delay_ms(10);
 //		Start autonomous ALS loop
 		SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
 
@@ -448,15 +497,19 @@ int main (void)
 				
 				case 0xa0:		// Elevation packet
 					getElevationPacket(4);
-				break;
+					break;
 				
 				case 0xa1:		// Time packet
 					getTimePacket(5);
-				break;
+					break;
+				
+				case 0xa2:		// ALS ADC Range Set Packet
+					getADCRangeSetPacket(3);
+					break;
 				
 				default:
 					rxByteCount = 0;
-				break;
+					break;
 			} 	
 		}			 		
 	}
