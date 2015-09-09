@@ -6,6 +6,8 @@ src\crc8.c
 
 src\press_sensor.c
 
+src\TH_sensor.c
+
 src\uv_sensor.c
 
 src\ASF\common\services\clock\mega\sysclk.c

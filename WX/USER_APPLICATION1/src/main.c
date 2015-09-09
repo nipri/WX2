@@ -44,11 +44,13 @@
 static bool isLED = false;
 static bool isPressureSensorPresent = false;
 static bool isLightSensorPresent = false;
+static bool isTHSensorPresent = false;
 uint8_t rxByteCount, rxPacket[16], byteDelayCount;
 
 static char data[128] = "";
 
-static double temperature;
+static double temperature, THtemperature;
+static double RH, dewPoint;
 static double pressure;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
@@ -73,7 +75,11 @@ extern uint8_t crc8(uint8_t data[], uint8_t length);
 
 extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
-extern uint16_t SI_readI2Cword(uint8_t whichReg);
+extern double SI_readI2Cword(uint8_t whichReg);
+
+extern uint8_t HTU_readI2Cbyte(uint8_t whichReg);
+extern uint8_t HTU_writeI2Cbyte(uint8_t whichReg, uint8_t data);
+extern double HTU_getData(uint8_t command);
 
 void init_USART0(uint8_t);
 void sendUART0data(char strData[], uint8_t size);
@@ -82,6 +88,8 @@ void flashLED2(uint8_t);
 void getTimePacket(uint8_t);
 void getElevationPacket(uint8_t);
 void getADCRangeSetPacket(uint8_t);
+
+double calcDewPoint(double, double);
 
 
 
@@ -240,6 +248,21 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 	}	
 }
 
+double calcDewPoint(double temp, double RH) {
+	
+	double dp, pp, temp1, temp2;
+	
+	temp1 = 8.1332 * (1762.39/(temp + 235.66));
+	
+	pp = pow(10, temp1);
+	
+	temp2 = log10(RH * (pp/100)) - 8.1332;
+	
+	dp = (1762.39 / temp2) + 235.66;
+	dp = -dp;
+	return dp;
+}
+
 // Will eventually handle the rain gauge
 ISR(INT2_vect) {
 	toggleLED();
@@ -273,7 +296,9 @@ ISR(TIMER0_COMPA_vect) {
 // Will be used as an accurate seconds counter for timestamping and reading sensor data 
 ISR(TIMER1_COMPA_vect) {
 	
-//	toggleLED();
+	uint16_t result;
+	
+	toggleLED();
 	
 	datetime.seconds++;
 	
@@ -313,6 +338,20 @@ ISR(TIMER1_COMPA_vect) {
 			sprintf(data, "Ambient Light Level and Sensor Vdd @time: %d:%d:%d	%4x		%4x \r\n", datetime.hours, datetime.minutes, datetime.seconds, rawLightData, uvIndex);
 			sendUART0data(data, sizeof(data));
 		}
+		
+		if (isTHSensorPresent) {
+			
+			THtemperature = HTU_getData(0xe3);
+			RH = HTU_getData(0xe5);
+			memset(data, 0, 128);
+			sprintf(data, "\r\nTH Temperature and %%RH @time: %d:%d:%d	%.1f	%.1f\r\n", datetime.hours, datetime.minutes, datetime.seconds, THtemperature, RH);
+			sendUART0data(data, sizeof(data));	
+			
+			dewPoint = calcDewPoint(THtemperature, RH);
+			memset(data, 0, 128);
+			sprintf(data, "Dew Point:%.1f\r\n", dewPoint);
+			sendUART0data(data, sizeof(data));			
+		}
 	
 //		count = 0;
 //	}	
@@ -333,7 +372,7 @@ ISR(USART0_RX_vect) {
 
 int main (void)
 {
-	uint8_t bmpID, si_PartID, si_RevID, si_SeqID;
+	uint8_t bmpID, si_PartID, si_RevID, si_SeqID, HTU_UserReg;
 //	board_init();
 
 // Set up clock
@@ -392,6 +431,7 @@ int main (void)
 	
 	sei(); // May want to move this down later on
 
+// Check for the pressure sensor
 	bmpID = getBMP_ID();
 	
 	if ( (bmpID == 0xba) || (bmpID == 0xbb) )  {
@@ -409,7 +449,7 @@ int main (void)
 		isPressureSensorPresent = true;
 	}
 
-	
+// check for the UV sensor and configure if it's present	
 	si_PartID = SI_readI2Cbyte(REG_PART_ID);
 	
 	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
@@ -422,56 +462,61 @@ int main (void)
 	} else {
 		
 		isLightSensorPresent = true;
-//		_delay_ms(1);
+
 		si_RevID = SI_readI2Cbyte(REG_REV_ID);
-//		_delay_ms(1);
 		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
 		memset (data, 0, 128);
 		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
 		sendUART0data(data, sizeof(data));	
-		
+
+// Write the hardware key to unlock the sensor		
 		SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
-//		_delay_ms(10);
 		
 // Set the UCOEF registers
 		SI_writeI2Cbyte(REG_UCOEF0, 0x0);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF1, 0x02);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF2, 0x89);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_UCOEF3, 0x29);
-//		_delay_ms(10);
 
 //		Set the measurement rate
 		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
 
-//		_delay_ms(10);
 //		 Set up the interrupts
 		SI_writeI2Cbyte(REG_INT_CFG, INT_OE);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
-//		_delay_ms(10);
+
 //		Set the CHLIST parameter
 		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
 
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
 		
 //		For ALS_VIS measurements... set for high sensitivity or high signal range
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_HI);
-//		_delay_ms(10);
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));	
 				
-//		_delay_ms(10);
 //		Start autonomous ALS loop
 		SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
 
 	}
+	
+// Check for the TH sensor
+	HTU_UserReg = HTU_readI2Cbyte(0xE7);
+	
+	if ( (HTU_UserReg == 0xba) || (HTU_UserReg == 0xbb) )  {
+		
+		memset (data, 0, 128);
+		sprintf(data, "TH Sensor not responding\r\n");
+		sendUART0data(data, sizeof(data));
+		isTHSensorPresent = false;
+		
+	} else {
+		sprintf(data, "HTU21D User Register: %x \r\n", HTU_UserReg);
+		sendUART0data(data, sizeof(data));
+		isTHSensorPresent = true;
+	}
+			
 	
 	if (isPressureSensorPresent) {
 		getBMPcoefficients();
