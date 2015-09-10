@@ -248,17 +248,22 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 	}	
 }
 
+// Taken from the HTU21D datasheet
 double calcDewPoint(double temp, double RH) {
+	
+	const A = 8.1332;
+	const B = 1762.39;
+	const C = 235.66;
 	
 	double dp, pp, temp1, temp2;
 	
-	temp1 = 8.1332 * (1762.39/(temp + 235.66));
+	temp1 = A - (B / (temp + C));
 	
 	pp = pow(10, temp1);
 	
-	temp2 = log10(RH * (pp/100)) - 8.1332;
+	temp2 = log10(RH * (pp/100)) - A;
 	
-	dp = (1762.39 / temp2) + 235.66;
+	dp = (B / temp2) + C;
 	dp = -dp;
 	return dp;
 }
@@ -515,6 +520,12 @@ int main (void)
 		sprintf(data, "HTU21D User Register: %x \r\n", HTU_UserReg);
 		sendUART0data(data, sizeof(data));
 		isTHSensorPresent = true;
+		
+		// Set the user register byte here
+		HTU_UserReg = HTU_writeI2Cbyte(0xe6, 0x02);	
+		sprintf(data, "HTU21D User Register Set To: %x \r\n", HTU_UserReg);
+		sendUART0data(data, sizeof(data));
+
 	}
 			
 	

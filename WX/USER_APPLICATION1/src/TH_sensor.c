@@ -135,7 +135,7 @@ uint8_t HTU_writeI2Cbyte(uint8_t whichReg, uint8_t data) {
 			return 0xaf;
 		}
 		
-		TWDR = whichReg;							// Load and send address of SI ID register 0x0 which should contain teh PART_ID
+		TWDR = whichReg + 1;							// Load and send address of SI ID register 0x0 which should contain teh PART_ID
 		TWCR = (1<<TWINT) | (1<<TWEN );
 		while (!(TWCR & (1<<TWINT)));
 		
