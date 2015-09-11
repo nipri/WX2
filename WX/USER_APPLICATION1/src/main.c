@@ -75,7 +75,7 @@ extern uint8_t crc8(uint8_t data[], uint8_t length);
 
 extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
-extern double SI_readI2Cword(uint8_t whichReg);
+extern uint16_t SI_readI2Cword(uint8_t whichReg);
 
 extern uint8_t HTU_readI2Cbyte(uint8_t whichReg);
 extern uint8_t HTU_writeI2Cbyte(uint8_t whichReg, uint8_t data);
@@ -283,13 +283,14 @@ ISR(INT4_vect) {
 	
 }
 
-// Will eventually handle the si1145 UV Sensor
+// Handles the si1145 UV Sensor... Pin 3 on the Arduino board
 ISR(INT5_vect) {
 	toggleLED();
 	SI_writeI2Cbyte(REG_IRQ_STATUS, 0x03);
 	
 	rawLightData = SI_readI2Cword(REG_ALS_VIS_DATA0);
 	uvIndex = SI_readI2Cword(REG_AUXDAT0_UVI0);
+
 }
 
 // Compare ISR for 8 bit Timer 0
@@ -303,7 +304,7 @@ ISR(TIMER1_COMPA_vect) {
 	
 	uint16_t result;
 	
-	toggleLED();
+//	toggleLED();
 	
 	datetime.seconds++;
 	
@@ -329,18 +330,21 @@ ISR(TIMER1_COMPA_vect) {
 	
 //	if (count >= 900) { //Every 15 minutes
 //	if (count >= 10) { //Every 10 seconds
+		memset(data, 0, 128);
+		sprintf(data, "\r\nTime: %d:%d:%d\r\n", datetime.hours, datetime.minutes, datetime.seconds);
+		sendUART0data(data, sizeof(data));
 	
 		if (isPressureSensorPresent) {
 			temperature = getBMPtemp();
 			pressure = getBMPpressure(elevation);
 			memset(data, 0, 128);
-			sprintf(data, "\r\nTemperature AND Pressure @time: %d:%d:%d	%.1f	%.2f\r\n", datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure);
+			sprintf(data, "\r\nTemperature and Pressure: %.1f	%.2f\r\n", temperature, pressure);
 			sendUART0data(data, sizeof(data));
 		}
 		
 		if (isLightSensorPresent) {
 			memset(data, 0, 128);
-			sprintf(data, "Ambient Light Level and Sensor Vdd @time: %d:%d:%d	%4x		%4x \r\n", datetime.hours, datetime.minutes, datetime.seconds, rawLightData, uvIndex);
+			sprintf(data, "\r\nAmbient Light Level (lux) and UV Index: %4x		%4x \r\n", rawLightData, uvIndex);
 			sendUART0data(data, sizeof(data));
 		}
 		
@@ -349,7 +353,7 @@ ISR(TIMER1_COMPA_vect) {
 			THtemperature = HTU_getData(0xe3);
 			RH = HTU_getData(0xe5);
 			memset(data, 0, 128);
-			sprintf(data, "\r\nTH Temperature and %%RH @time: %d:%d:%d	%.1f	%.1f\r\n", datetime.hours, datetime.minutes, datetime.seconds, THtemperature, RH);
+			sprintf(data, "\r\nTH Temperature and %%RH: %.1f	%.1f\r\n", THtemperature, RH);
 			sendUART0data(data, sizeof(data));	
 			
 			dewPoint = calcDewPoint(THtemperature, RH);
@@ -467,7 +471,6 @@ int main (void)
 	} else {
 		
 		isLightSensorPresent = true;
-
 		si_RevID = SI_readI2Cbyte(REG_REV_ID);
 		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
@@ -479,13 +482,13 @@ int main (void)
 		SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
 		
 // Set the UCOEF registers
-		SI_writeI2Cbyte(REG_UCOEF0, 0x0);
-		SI_writeI2Cbyte(REG_UCOEF1, 0x02);
-		SI_writeI2Cbyte(REG_UCOEF2, 0x89);
-		SI_writeI2Cbyte(REG_UCOEF3, 0x29);
+		SI_writeI2Cbyte(REG_UCOEF0, 0x0);	
+		SI_writeI2Cbyte(REG_UCOEF1, 0x02);	
+		SI_writeI2Cbyte(REG_UCOEF2, 0x89);	
+		SI_writeI2Cbyte(REG_UCOEF3, 0x29);	
 
 //		Set the measurement rate
-		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);
+		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);	
 		SI_writeI2Cbyte(REG_MEAS_RATE1, MEAS_RATE1);
 
 //		 Set up the interrupts
@@ -493,23 +496,25 @@ int main (void)
 		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
 
 //		Set the CHLIST parameter
-		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));		
-
+//		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));
+		SI_writeI2Cbyte(REG_PARAM_WR, EN_ALS_VIS);		
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
 		
 //		For ALS_VIS measurements... set for high sensitivity or high signal range
-		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_HI);
+		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_NORMAL);	
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));	
-				
+		
+		
+			
 //		Start autonomous ALS loop
 		SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);
 
 	}
-	
+
 // Check for the TH sensor
 	HTU_UserReg = HTU_readI2Cbyte(0xE7);
 	
-	if ( (HTU_UserReg == 0xba) || (HTU_UserReg == 0xbb) )  {
+	if ( (HTU_UserReg == 0xaa) || (HTU_UserReg == 0xab) )  {
 		
 		memset (data, 0, 128);
 		sprintf(data, "TH Sensor not responding\r\n");
@@ -544,7 +549,7 @@ int main (void)
 		
 		
 	while(1) {
-			
+					
 		if (rxByteCount > 0) {
 			
 			_delay_ms(10);
