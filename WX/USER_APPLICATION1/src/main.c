@@ -40,6 +40,7 @@
 #include <math.h>
 
 #include "uv_sensor.h"
+#include "lcd.h"
 
 static bool isLED = false;
 static bool isPressureSensorPresent = false;
@@ -436,6 +437,9 @@ int main (void)
 	
 // Set up UART0
 	init_USART0(MYUBRR);
+	
+// Set up tke LCD 
+lcd_init(LCD_DISP_ON_CURSOR_BLINK);
 
 	
 	sei(); // May want to move this down later on
