@@ -349,6 +349,10 @@ ISR(TIMER1_COMPA_vect) {
 			memset(data, 0, 128);
 			sprintf(data, "\r\nTemperature and Pressure: %.1f	%.2f\r\n", temperature, pressure);
 			sendUART0data(data, sizeof(data));
+			
+			sprintf(lcdStr, "Temp Pressure\n%.1f C%.2f inHg", temperature, pressure);
+			writeLCD(lcdStr);
+			
 		}
 		
 		if (isLightSensorPresent) {
