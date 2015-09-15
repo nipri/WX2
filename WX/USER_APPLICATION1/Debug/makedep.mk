@@ -4,6 +4,8 @@
 
 src\crc8.c
 
+src\lcd.c
+
 src\press_sensor.c
 
 src\TH_sensor.c

@@ -49,6 +49,7 @@ static bool isTHSensorPresent = false;
 uint8_t rxByteCount, rxPacket[16], byteDelayCount;
 
 static char data[128] = "";
+static char lcdStr[16] = "";
 
 static double temperature, THtemperature;
 static double RH, dewPoint;
@@ -82,6 +83,8 @@ extern uint8_t HTU_readI2Cbyte(uint8_t whichReg);
 extern uint8_t HTU_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern double HTU_getData(uint8_t command);
 
+void writeLCD(char strData[]);
+
 void init_USART0(uint8_t);
 void sendUART0data(char strData[], uint8_t size);
 void toggleLED(void);
@@ -93,7 +96,12 @@ void getADCRangeSetPacket(uint8_t);
 double calcDewPoint(double, double);
 
 
-
+void writeLCD(char strData[]) {
+	
+	lcd_clrscr();
+	lcd_puts(strData);	
+	
+}
 
 inline void init_USART0(uint8_t ubrr){
 	
@@ -389,6 +397,10 @@ int main (void)
 //	CLKPR = 0x80;
 //	CLKPR = 0x00;
 
+// Set up Port A (LCD)
+	DDRA = 0xff;
+	PORTA = 0x00;
+
 // Set up Port B	
 	DDRB = 0xff;	
 	PORTB &= 0x7f; // Turn off LED
@@ -438,8 +450,10 @@ int main (void)
 // Set up UART0
 	init_USART0(MYUBRR);
 	
-// Set up tke LCD 
-lcd_init(LCD_DISP_ON_CURSOR_BLINK);
+// Set up and test the LCD 
+	lcd_init(LCD_DISP_ON_CURSOR_BLINK);
+	writeLCD("HELLO");
+//	lcd_putc('C');
 
 	
 	sei(); // May want to move this down later on
@@ -452,6 +466,9 @@ lcd_init(LCD_DISP_ON_CURSOR_BLINK);
 		memset (data, 0, 128);
 		sprintf(data, "Pressure Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
+		
+		sprintf(lcdStr, "Sensor Error\nPressure");
+		writeLCD(lcdStr);
 		isPressureSensorPresent = false;
 		
 	} else {

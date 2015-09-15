@@ -60,6 +60,7 @@ SUBDIRS :=  \
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS +=  \
 ../src/crc8.c \
+../src/lcd.c \
 ../src/press_sensor.c \
 ../src/TH_sensor.c \
 ../src/uv_sensor.c \
@@ -76,6 +77,7 @@ ASM_SRCS +=
 
 OBJS +=  \
 src/crc8.o \
+src/lcd.o \
 src/press_sensor.o \
 src/TH_sensor.o \
 src/uv_sensor.o \
@@ -85,6 +87,7 @@ src/ASF/common/boards/user_board/init.o
 
 OBJS_AS_ARGS +=  \
 src/crc8.o \
+src/lcd.o \
 src/press_sensor.o \
 src/TH_sensor.o \
 src/uv_sensor.o \
@@ -94,6 +97,7 @@ src/ASF/common/boards/user_board/init.o
 
 C_DEPS +=  \
 src/crc8.d \
+src/lcd.d \
 src/press_sensor.d \
 src/TH_sensor.d \
 src/uv_sensor.d \
@@ -103,6 +107,7 @@ src/ASF/common/boards/user_board/init.d
 
 C_DEPS_AS_ARGS +=  \
 src/crc8.d \
+src/lcd.d \
 src/press_sensor.d \
 src/TH_sensor.d \
 src/uv_sensor.d \
@@ -124,6 +129,8 @@ LINKER_SCRIPT_DEP+=
 
 
 # AVR32/GNU C Compiler
+
+
 
 
 
