@@ -56,6 +56,9 @@ static double RH, dewPoint;
 static double pressure;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
+static int uvIndex2;
+static uint8_t lcdCount;
+static uint16_t count;
 
 struct datetime {
 	uint8_t seconds;
@@ -294,11 +297,16 @@ ISR(INT4_vect) {
 
 // Handles the si1145 UV Sensor... Pin 3 on the Arduino board
 ISR(INT5_vect) {
+	uint8_t rValue;
 	toggleLED();
-	SI_writeI2Cbyte(REG_IRQ_STATUS, 0x03);
+	
+	rValue = SI_readI2Cbyte(REG_IRQ_STATUS);
+	SI_writeI2Cbyte(REG_IRQ_STATUS, (rValue & 0x03));
 	
 	rawLightData = SI_readI2Cword(REG_ALS_VIS_DATA0);
 	uvIndex = SI_readI2Cword(REG_AUXDAT0_UVI0);
+	
+	uvIndex2 = round((double)uvIndex / 100);
 
 }
 
@@ -350,15 +358,22 @@ ISR(TIMER1_COMPA_vect) {
 			sprintf(data, "\r\nTemperature and Pressure: %.1f	%.2f\r\n", temperature, pressure);
 			sendUART0data(data, sizeof(data));
 			
-			sprintf(lcdStr, "Temp Pressure\n%.1f C%.2f inHg", temperature, pressure);
-			writeLCD(lcdStr);
+			if ( (lcdCount == 0) || (lcdCount == 1) ) {
+				sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, pressure);
+				writeLCD(lcdStr);
+			}		
 			
 		}
 		
 		if (isLightSensorPresent) {
 			memset(data, 0, 128);
-			sprintf(data, "\r\nAmbient Light Level (lux) and UV Index: %4x		%4x \r\n", rawLightData, uvIndex);
+			sprintf(data, "\r\nAmbient Light Level (lux) and UV Index: %u		%d \r\n", rawLightData, uvIndex2);
 			sendUART0data(data, sizeof(data));
+			
+			if ( (lcdCount == 2) || (lcdCount == 3) ) {
+				sprintf(lcdStr, "Light     UV ind\n%u     %d", rawLightData, uvIndex2);
+				writeLCD(lcdStr);
+			}
 		}
 		
 		if (isTHSensorPresent) {
@@ -372,8 +387,19 @@ ISR(TIMER1_COMPA_vect) {
 			dewPoint = calcDewPoint(THtemperature, RH);
 			memset(data, 0, 128);
 			sprintf(data, "Dew Point:%.1f\r\n", dewPoint);
-			sendUART0data(data, sizeof(data));			
+			sendUART0data(data, sizeof(data));	
+			
+			if ( (lcdCount == 4) || (lcdCount == 5) ) {
+				sprintf(lcdStr, "Temp  %%RH  DP \n%.1f %.1f  %.1f", THtemperature, RH, dewPoint);
+				writeLCD(lcdStr);
+			}		
 		}
+		
+		lcdCount++;
+		
+		if (lcdCount > 5)
+			lcdCount = 0;
+		
 	
 //		count = 0;
 //	}	
@@ -395,6 +421,7 @@ ISR(USART0_RX_vect) {
 int main (void)
 {
 	uint8_t bmpID, si_PartID, si_RevID, si_SeqID, HTU_UserReg;
+	uint8_t rValue;
 //	board_init();
 
 // Set up clock
@@ -471,8 +498,8 @@ int main (void)
 		sprintf(data, "Pressure Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
 		
-		sprintf(lcdStr, "Sensor Error\nPressure");
-		writeLCD(lcdStr);
+//		sprintf(lcdStr, "Sensor Error\nPressure");
+//		writeLCD(lcdStr);
 		isPressureSensorPresent = false;
 		
 	} else {
@@ -507,10 +534,22 @@ int main (void)
 		SI_writeI2Cbyte(REG_HW_KEY, HW_KEY);
 		
 // Set the UCOEF registers
-		SI_writeI2Cbyte(REG_UCOEF0, 0x0);	
-		SI_writeI2Cbyte(REG_UCOEF1, 0x02);	
-		SI_writeI2Cbyte(REG_UCOEF2, 0x89);	
-		SI_writeI2Cbyte(REG_UCOEF3, 0x29);	
+		// Calibration values from datasheet
+//		SI_writeI2Cbyte(REG_UCOEF0, 0x0);	
+//		SI_writeI2Cbyte(REG_UCOEF1, 0x02);	
+//		SI_writeI2Cbyte(REG_UCOEF2, 0x89);	
+//		SI_writeI2Cbyte(REG_UCOEF3, 0x29);	
+		
+		SI_writeI2Cbyte(REG_UCOEF0, 0x29);
+		SI_writeI2Cbyte(REG_UCOEF1, 0x89);
+		SI_writeI2Cbyte(REG_UCOEF2, 0x02);
+		SI_writeI2Cbyte(REG_UCOEF3, 0x0);
+		
+		// Calibration values found online
+//		SI_writeI2Cbyte(REG_UCOEF0, 0x7b);
+//		SI_writeI2Cbyte(REG_UCOEF1, 0x6b);
+//		SI_writeI2Cbyte(REG_UCOEF2, 0x01);
+//		SI_writeI2Cbyte(REG_UCOEF3, 0x00);
 
 //		Set the measurement rate
 		SI_writeI2Cbyte(REG_MEAS_RATE0, MEAS_RATE0);	
@@ -521,15 +560,24 @@ int main (void)
 		SI_writeI2Cbyte(REG_IRQ_ENABLE, ALS_IE);
 
 //		Set the CHLIST parameter
-//		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_VIS | EN_UV));
-		SI_writeI2Cbyte(REG_PARAM_WR, EN_ALS_VIS);		
-		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));		
+		SI_writeI2Cbyte(REG_PARAM_WR, (EN_ALS_IR | EN_ALS_VIS | EN_UV));
+//		SI_writeI2Cbyte(REG_PARAM_WR, EN_UV);		
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | CHLIST));	
 		
-//		For ALS_VIS measurements... set for high sensitivity or high signal range
+// Verify the last set parameter
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_QUERY | CHLIST));
+		_delay_ms(10);
+		rValue = SI_readI2Cbyte(REG_PARAM_RD);
+		sprintf(data, "rValue: %x \r\n", rValue);
+		sendUART0data(data, sizeof(data));
+		
+
+		
+//		For ALS measurements... set for high sensitivity or high signal range
 		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_NORMAL);	
-		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));	
-		
-		
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));		
+		SI_writeI2Cbyte(REG_PARAM_WR, IR_RANGE_NORMAL);
+		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_IR_ADC_MISC));	
 			
 //		Start autonomous ALS loop
 		SI_writeI2Cbyte(REG_COMMAND, ALS_AUTO);

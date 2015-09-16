@@ -95,7 +95,8 @@
 // Parameter ALS_VIS_ADC_MISC Values
 #define VIS_RANGE_NORMAL		0x0
 #define VIS_RANGE_HI			0x20		// divides gain by 14.5
-
+#define IR_RANGE_NORMAL			0x0
+#define IR_RANGE_HI				0x20		// divides gain by 14.5
 
 //Responses: errors
 #define RESP_INVALID_SETTING	0x80
@@ -128,10 +129,10 @@
 
 //I2C Register bits... Measurement Rate (16 bit value)
 	// 1 second rate
-	//#define MEAS_RATE0				0x00
-	//#define MEAS_RATE1				0x7d
+	#define MEAS_RATE0				0x00
+	#define MEAS_RATE1				0x7d
 	// 0.5s rate
-	#define MEAS_RATE0				0x80
-	#define MEAS_RATE1				0x3e
+	//#define MEAS_RATE0				0x80
+	//#define MEAS_RATE1				0x3e
 
 
