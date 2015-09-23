@@ -10,7 +10,7 @@
 //#define DI  0x07	//Poly X8+X2+X+1
 #define DI 0x19		//Poly X8+X5+X4+1
 
-uint8_t crc8(uint8_t data[], uint8_t);
+uint8_t crc8(volatile uint8_t data[], uint8_t);
 void init_crc8(void);
 
 uint8_t crc8_table[256];     /* 8-bit table */
@@ -34,7 +34,7 @@ void init_crc8(void) {
 	made_table=1;
 }
 
-uint8_t crc8(uint8_t data[], uint8_t length) {
+uint8_t crc8(volatile uint8_t data[], uint8_t length) {
 /*
 * For a byte array whose accumulated crc value is stored in *crc, computes
 * resultant crc obtained by appending m to the byte array

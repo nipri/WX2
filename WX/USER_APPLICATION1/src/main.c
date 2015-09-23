@@ -46,7 +46,8 @@ static bool isLED = false;
 static bool isPressureSensorPresent = false;
 static bool isLightSensorPresent = false;
 static bool isTHSensorPresent = false;
-uint8_t rxByteCount, rxPacket[16], byteDelayCount;
+static volatile uint8_t rxPacket[16], byteDelayCount;
+static volatile uint8_t rxByteCount;
 
 static char data[128] = "";
 static char lcdStr[16] = "";
@@ -76,7 +77,7 @@ extern double getBMPtemp(void);
 extern double getBMPpressure(uint16_t);
 extern void BMPreset(void);
 
-extern uint8_t crc8(uint8_t data[], uint8_t length);
+extern uint8_t crc8(volatile uint8_t data[], uint8_t length);
 
 extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
@@ -161,9 +162,12 @@ void getTimePacket(uint8_t byteCount) {
 	uint8_t crc;
 	
 	byteDelayCount = 0;
+
+//	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	while(rxByteCount < byteCount);
 	
-	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-//	while(rxByteCount < byteCount-1);
+		sprintf(data, "BYTE COUNT %d\r\n", rxByteCount);
+		sendUART0data(data, 16);	
 	
 	rxByteCount = 0;
 				
@@ -171,7 +175,7 @@ void getTimePacket(uint8_t byteCount) {
 		sprintf(data, "Timeout!\r\n");
 		sendUART0data(data, 10);
 	} else {	
-		crc = crc8(rxPacket, byteCount-1);
+		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[4]) {
 			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
@@ -194,8 +198,8 @@ void getElevationPacket(uint8_t byteCount) {
 	
 	byteDelayCount = 0;
 	
-	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	//	while(rxByteCount < byteCount-1);
+//	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	while(rxByteCount < byteCount);
 	
 	rxByteCount = 0;
 	
@@ -203,19 +207,22 @@ void getElevationPacket(uint8_t byteCount) {
 		sprintf(data, "Timeout!\r\n");
 		sendUART0data(data, 10);
 		} else {
-		crc = crc8(rxPacket, byteCount-1);
+		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[3]) {
 			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 32);
+			sendUART0data(data, 64);
 			} else {
 			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 32);
+			sendUART0data(data, 64);
 			
 			elevation = (rxPacket[1] << 8) + rxPacket[2];
 			
 		}
 	}	
+	
+				sprintf(data, "\r\nSet elevation to: %d\r\n", elevation);
+				sendUART0data(data, 64);
 }
 
 void getADCRangeSetPacket(uint8_t byteCount) {
@@ -224,8 +231,8 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 	
 	byteDelayCount = 0;
 	
-	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	//	while(rxByteCount < byteCount-1);
+//	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
+	while(rxByteCount < byteCount);
 	
 	rxByteCount = 0;
 	
@@ -233,14 +240,14 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 		sprintf(data, "Timeout!\r\n");
 		sendUART0data(data, 10);
 		} else {
-		crc = crc8(rxPacket, byteCount-1);
+		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[2]) {
 			sprintf(data, "ADCRange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
-			sendUART0data(data, 32);
+			sendUART0data(data, 64);
 			} else {
 			sprintf(data, "ADCrange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
-			sendUART0data(data, 32);
+			sendUART0data(data, 64);
 			
 			SI_writeI2Cbyte(REG_COMMAND, ALS_PAUSE);
 			_delay_ms(10);
@@ -263,9 +270,9 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 // Taken from the HTU21D datasheet
 double calcDewPoint(double temp, double RH) {
 	
-	const A = 8.1332;
-	const B = 1762.39;
-	const C = 235.66;
+	const double A = 8.1332;
+	const double B = 1762.39;
+	const double C = 235.66;
 	
 	double dp, pp, temp1, temp2;
 	
@@ -410,9 +417,6 @@ ISR(TIMER1_COMPA_vect) {
 ISR(USART0_RX_vect) {
 	
 	rxPacket[rxByteCount] = UDR0;	
-//	sprintf(data, "RXpacket %d:	%x\r\n", rxByteCount, rxPacket[rxByteCount]);
-//	sprintf(data, "UCSR0A: %x\r\n", UCSR0A);
-//	sendUART0data(data, 20);
 	rxByteCount++;
 }
 
@@ -622,29 +626,28 @@ int main (void)
 		
 		
 	while(1) {
-					
+				
 		if (rxByteCount > 0) {
-			
-			_delay_ms(10);
 	
 			switch(rxPacket[0]) {
 				
 				case 0xa0:		// Elevation packet
-					getElevationPacket(4);
+					getElevationPacket(5);
 					break;
 				
 				case 0xa1:		// Time packet
-					getTimePacket(5);
+					getTimePacket(6);
 					break;
 				
 				case 0xa2:		// ALS ADC Range Set Packet
-					getADCRangeSetPacket(3);
+					getADCRangeSetPacket(4);
 					break;
 				
 				default:
-					rxByteCount = 0;
+//					rxByteCount = 0;
 					break;
 			} 	
-		}			 		
+		}
+			 		
 	}
 }
