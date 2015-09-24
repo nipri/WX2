@@ -14,7 +14,7 @@ uint8_t crc8(volatile uint8_t data[], uint8_t);
 void init_crc8(void);
 
 uint8_t crc8_table[256];     /* 8-bit table */
-static uint8_t made_table = 0;
+//static uint8_t made_table = 0;
 
 void init_crc8(void) {
 
@@ -31,7 +31,7 @@ void init_crc8(void) {
 			crc8_table[i] = crc & 0xFF;
 		}
 
-	made_table=1;
+//	made_table=1;
 }
 
 uint8_t crc8(volatile uint8_t data[], uint8_t length) {
@@ -43,8 +43,8 @@ uint8_t crc8(volatile uint8_t data[], uint8_t length) {
 	uint8_t i;
 	uint8_t crc = 0x0;
  
-	if (made_table == 0)
-		init_crc8();
+//	if (made_table == 0)
+//		init_crc8();
 
 	for (i=0; i<length; i++) {
 		crc = crc8_table[crc ^ data[i]];

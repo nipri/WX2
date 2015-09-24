@@ -51,6 +51,7 @@ static volatile uint8_t rxByteCount;
 
 static char data[128] = "";
 static char lcdStr[16] = "";
+static char verSering[] = "pp.01";
 
 static double temperature, THtemperature;
 static double RH, dewPoint;
@@ -58,8 +59,8 @@ static double pressure;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
 static int uvIndex2;
-static uint8_t lcdCount;
 static uint16_t count;
+static uint8_t lcdCount, lcdLineCount;
 
 struct datetime {
 	uint8_t seconds;
@@ -78,6 +79,7 @@ extern double getBMPpressure(uint16_t);
 extern void BMPreset(void);
 
 extern uint8_t crc8(volatile uint8_t data[], uint8_t length);
+extern void init_crc8(void);
 
 extern uint8_t SI_writeI2Cbyte(uint8_t whichReg, uint8_t data);
 extern uint8_t SI_readI2Cbyte(uint8_t whichReg);
@@ -96,8 +98,11 @@ void flashLED2(uint8_t);
 void getTimePacket(uint8_t);
 void getElevationPacket(uint8_t);
 void getADCRangeSetPacket(uint8_t);
-
 double calcDewPoint(double, double);
+void printData(void);
+void printLCD(void);
+
+
 
 
 void writeLCD(char strData[]) {
@@ -164,12 +169,12 @@ void getTimePacket(uint8_t byteCount) {
 	byteDelayCount = 0;
 
 //	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	while(rxByteCount < byteCount);
+//	while(rxByteCount < byteCount);
 	
 		sprintf(data, "BYTE COUNT %d\r\n", rxByteCount);
 		sendUART0data(data, 16);	
 	
-	rxByteCount = 0;
+//	rxByteCount = 0;
 				
 	if (byteDelayCount >= 2) {
 		sprintf(data, "Timeout!\r\n");
@@ -189,7 +194,7 @@ void getTimePacket(uint8_t byteCount) {
 			datetime.seconds = rxPacket[3];
 			
 		}
-	}		
+	}	
 }
 
 void getElevationPacket(uint8_t byteCount) {
@@ -199,9 +204,9 @@ void getElevationPacket(uint8_t byteCount) {
 	byteDelayCount = 0;
 	
 //	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	while(rxByteCount < byteCount);
+//	while(rxByteCount < byteCount);
 	
-	rxByteCount = 0;
+//	rxByteCount = 0;
 	
 	if (byteDelayCount >= 2) {
 		sprintf(data, "Timeout!\r\n");
@@ -220,9 +225,6 @@ void getElevationPacket(uint8_t byteCount) {
 			
 		}
 	}	
-	
-				sprintf(data, "\r\nSet elevation to: %d\r\n", elevation);
-				sendUART0data(data, 64);
 }
 
 void getADCRangeSetPacket(uint8_t byteCount) {
@@ -232,9 +234,9 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 	byteDelayCount = 0;
 	
 //	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
-	while(rxByteCount < byteCount);
+//	while(rxByteCount < byteCount);
 	
-	rxByteCount = 0;
+//	rxByteCount = 0;
 	
 	if (byteDelayCount >= 2) {
 		sprintf(data, "Timeout!\r\n");
@@ -286,6 +288,45 @@ double calcDewPoint(double temp, double RH) {
 	dp = -dp;
 	return dp;
 }
+
+void printData(void) {
+	
+	memset(data, 0, 128);
+	sprintf(data, "%s	%d:%d:%d	%.1f	%.2f	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
+	sendUART0data(data, sizeof(data));
+	
+}
+
+void printLCD(void){
+	
+	if (isPressureSensorPresent) {
+			
+		if ( (lcdLineCount >= 0) && (lcdLineCount <= 4) ) {
+			sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, pressure);
+			writeLCD(lcdStr);
+		}
+	}
+		
+	if (isLightSensorPresent) {
+			
+		if ( (lcdLineCount > 4) && (lcdLineCount <= 9) ) {
+			sprintf(lcdStr, "Light     UV ind\n%u     %d", rawLightData, uvIndex2);
+			writeLCD(lcdStr);
+		}
+	}
+		
+	if (isTHSensorPresent) {
+			
+		if ( (lcdLineCount > 9) && (lcdLineCount <= 14) ) {
+			sprintf(lcdStr, "Temp  %%RH  DP \n%.1f %.1f  %.1f", THtemperature, RH, dewPoint);
+			writeLCD(lcdStr);
+		}
+	}
+		
+	if (lcdLineCount++ > 14)
+		lcdLineCount = 0;	
+}
+
 
 // Will eventually handle the rain gauge
 ISR(INT2_vect) {
@@ -349,68 +390,21 @@ ISR(TIMER1_COMPA_vect) {
 		}
 	}
 	
-	byteDelayCount ++;
-//	count++;
+//	byteDelayCount ++;
+	count++;
+	lcdCount++;
 	
-//	if (count >= 900) { //Every 15 minutes
-//	if (count >= 10) { //Every 10 seconds
-		memset(data, 0, 128);
-		sprintf(data, "\r\nTime: %d:%d:%d\r\n", datetime.hours, datetime.minutes, datetime.seconds);
-		sendUART0data(data, sizeof(data));
-	
-		if (isPressureSensorPresent) {
-			temperature = getBMPtemp();
-			pressure = getBMPpressure(elevation);
-			memset(data, 0, 128);
-			sprintf(data, "\r\nTemperature and Pressure: %.1f	%.2f\r\n", temperature, pressure);
-			sendUART0data(data, sizeof(data));
-			
-			if ( (lcdCount == 0) || (lcdCount == 1) ) {
-				sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, pressure);
-				writeLCD(lcdStr);
-			}		
-			
-		}
+	if (isPressureSensorPresent) {
+		temperature = getBMPtemp();
+		pressure = getBMPpressure(elevation);
+	}
 		
-		if (isLightSensorPresent) {
-			memset(data, 0, 128);
-			sprintf(data, "\r\nAmbient Light Level (lux) and UV Index: %u		%d \r\n", rawLightData, uvIndex2);
-			sendUART0data(data, sizeof(data));
+	if (isTHSensorPresent) {
 			
-			if ( (lcdCount == 2) || (lcdCount == 3) ) {
-				sprintf(lcdStr, "Light     UV ind\n%u     %d", rawLightData, uvIndex2);
-				writeLCD(lcdStr);
-			}
-		}
-		
-		if (isTHSensorPresent) {
-			
-			THtemperature = HTU_getData(0xe3);
-			RH = HTU_getData(0xe5);
-			memset(data, 0, 128);
-			sprintf(data, "\r\nTH Temperature and %%RH: %.1f	%.1f\r\n", THtemperature, RH);
-			sendUART0data(data, sizeof(data));	
-			
-			dewPoint = calcDewPoint(THtemperature, RH);
-			memset(data, 0, 128);
-			sprintf(data, "Dew Point:%.1f\r\n", dewPoint);
-			sendUART0data(data, sizeof(data));	
-			
-			if ( (lcdCount == 4) || (lcdCount == 5) ) {
-				sprintf(lcdStr, "Temp  %%RH  DP \n%.1f %.1f  %.1f", THtemperature, RH, dewPoint);
-				writeLCD(lcdStr);
-			}		
-		}
-		
-		lcdCount++;
-		
-		if (lcdCount > 5)
-			lcdCount = 0;
-		
-	
-//		count = 0;
-//	}	
-
+		THtemperature = HTU_getData(0xe3);
+		RH = HTU_getData(0xe5);
+		dewPoint = calcDewPoint(THtemperature, RH);
+	}
 }
 
 
@@ -442,6 +436,9 @@ int main (void)
 	
 	cli();
 	
+// Build the CRC table
+	init_crc8();
+	
 //Set up external interrupts
 
 	// INT2 for rain gauge
@@ -450,7 +447,7 @@ int main (void)
 
 	// INT4 for the AS3935
 	// INT5 for the UV sensor
-	EICRB = 0x0a; // Enable falling edge int on INT5 and INT4
+	EICRB = 0x0a; // Enable falling edge int on INT5 and INT4 
 	
 	// Interrupt mask
 	EIMSK = 0x3c;	// Mask the above mentioned interrupts
@@ -626,8 +623,33 @@ int main (void)
 		
 		
 	while(1) {
+		
+		if (count >= 5) {
+			count = 0;
+			printData();
+		}
+		
+		if (lcdCount >= 1) {
+			lcdCount = 0;
+			printLCD();
+		}
+			
 				
 		if (rxByteCount > 0) {
+			
+			if ( (rxPacket[0] == 0xa1) && (rxByteCount == 6) ) {
+				rxByteCount = 0;
+				getTimePacket(6);
+			}
+			else if ( (rxPacket[0] == 0xa0) && (rxByteCount == 5) ) {
+				rxByteCount = 0;
+				getElevationPacket(5);
+			}
+			else if ( (rxPacket[0] == 0xa2) && (rxByteCount == 4) ) {
+				rxByteCount = 0;
+				getADCRangeSetPacket(4);
+			}
+/*
 	
 			switch(rxPacket[0]) {
 				
@@ -644,9 +666,10 @@ int main (void)
 					break;
 				
 				default:
-//					rxByteCount = 0;
+					rxByteCount = 0;
 					break;
-			} 	
+			} 	*/
+
 		}
 			 		
 	}
