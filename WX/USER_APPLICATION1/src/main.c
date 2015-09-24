@@ -1,29 +1,12 @@
 /**
- * \file
- *
- * \brief Empty user application template
- *
- */
-
-/**
- * \mainpage User Application template doxygen documentation
- *
- * \par Empty user application template
- *
- * Bare minimum empty user application template
- *
- * \par Content
- *
- * -# Include the ASF header files (through asf.h)
- * -# Minimal main function that starts with a call to board_init()
- * -# "Insert application code here" comment
- *
- */
-
-/*
- * Include header files for all drivers that have been imported from
- * Atmel Software Framework (ASF).
- */
+* main.c: Main file for the WX project
+* 
+* REVISION HISTORY:
+*
+* pp.10		9/24/2015		NCI
+*
+*
+*/
 
 
 //#define FOSC	1843200UL
@@ -51,15 +34,17 @@ static volatile uint8_t rxByteCount;
 
 static char data[128] = "";
 static char lcdStr[16] = "";
-static char verSering[] = "pp.01";
+static char verSering[] = "pp.10";
+static char pressTrend[] = "---";
+
 
 static double temperature, THtemperature;
 static double RH, dewPoint;
-static double pressure;
+static double pressure, lastPressure, inHg;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
 static int uvIndex2;
-static uint16_t count;
+static uint16_t count, longCount;
 static uint8_t lcdCount, lcdLineCount;
 
 struct datetime {
@@ -99,6 +84,7 @@ void getTimePacket(uint8_t);
 void getElevationPacket(uint8_t);
 void getADCRangeSetPacket(uint8_t);
 double calcDewPoint(double, double);
+void calcPressureTendancy(double);
 void printData(void);
 void printLCD(void);
 
@@ -171,9 +157,6 @@ void getTimePacket(uint8_t byteCount) {
 //	while( (byteDelayCount < 2) && (rxByteCount < byteCount-1) );
 //	while(rxByteCount < byteCount);
 	
-		sprintf(data, "BYTE COUNT %d\r\n", rxByteCount);
-		sendUART0data(data, 16);	
-	
 //	rxByteCount = 0;
 				
 	if (byteDelayCount >= 2) {
@@ -183,11 +166,11 @@ void getTimePacket(uint8_t byteCount) {
 		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[4]) {
-			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
-			sendUART0data(data, 32);
+//			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+//			sendUART0data(data, 32);
 		} else {
-			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
-			sendUART0data(data, 32);
+//			sprintf(data, "Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[4], crc);
+//			sendUART0data(data, 32);
 			
 			datetime.hours = rxPacket[1];
 			datetime.minutes = rxPacket[2];
@@ -211,15 +194,15 @@ void getElevationPacket(uint8_t byteCount) {
 	if (byteDelayCount >= 2) {
 		sprintf(data, "Timeout!\r\n");
 		sendUART0data(data, 10);
-		} else {
+	} else {
 		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[3]) {
-			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 64);
-			} else {
-			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
-			sendUART0data(data, 64);
+//			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+//			sendUART0data(data, 64);
+		} else {
+//			sprintf(data, "Elevation Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[3], crc);
+//			sendUART0data(data, 64);
 			
 			elevation = (rxPacket[1] << 8) + rxPacket[2];
 			
@@ -245,11 +228,11 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 		crc = crc8(rxPacket, byteCount-2);
 		
 		if (crc != rxPacket[2]) {
-			sprintf(data, "ADCRange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
-			sendUART0data(data, 64);
-			} else {
-			sprintf(data, "ADCrange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
-			sendUART0data(data, 64);
+//			sprintf(data, "ADCRange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
+//			sendUART0data(data, 64);
+		} else {
+//			sprintf(data, "ADCrange Packet CRC: %x	Calc CRC: %x\r\n", rxPacket[2], crc);
+//			sendUART0data(data, 64);
 			
 			SI_writeI2Cbyte(REG_COMMAND, ALS_PAUSE);
 			_delay_ms(10);
@@ -261,6 +244,14 @@ void getADCRangeSetPacket(uint8_t byteCount) {
 				
 			_delay_ms(10);
 			SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));
+			
+			if (rxPacket[2] == 1)
+			SI_writeI2Cbyte(REG_PARAM_WR, IR_RANGE_HI);
+			else
+			SI_writeI2Cbyte(REG_PARAM_WR, IR_RANGE_NORMAL);
+			
+			_delay_ms(10);
+			SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_IR_ADC_MISC));
 				
 			_delay_ms(10);
 			//		Restart autonomous ALS loop
@@ -289,12 +280,41 @@ double calcDewPoint(double temp, double RH) {
 	return dp;
 }
 
+void calcPressureTendancy(double currentPressure) {
+	
+	if ( ( currentPressure >= (lastPressure - 0.1) ) &&  (currentPressure <= (lastPressure + 0.1 ) ) )
+		sprintf(pressTrend, "STE");
+		
+	if ( (currentPressure > (lastPressure + 0.1) ) && (currentPressure < (lastPressure + 1.5) ) )
+		sprintf(pressTrend, "RSL");
+		
+	if ( (currentPressure > (lastPressure + 1.6) ) && (currentPressure < (lastPressure + 3.5) ) )
+		sprintf(pressTrend, "RIS");
+		
+	if ( (currentPressure > (lastPressure + 3.6) ) && (currentPressure < (lastPressure + 6.0) ) )
+		sprintf(pressTrend, "RFA");
+
+	if (currentPressure > (lastPressure + 6.0) )
+		sprintf(pressTrend, "RVF");
+		
+	if ( (currentPressure < (lastPressure + 0.1) ) && (currentPressure > (lastPressure + 1.5) ) )
+		sprintf(pressTrend, "FSL");
+	
+	if ( (currentPressure < (lastPressure + 1.6) ) && (currentPressure > (lastPressure + 3.5) ) )
+		sprintf(pressTrend, "FAL");
+	
+	if ( (currentPressure < (lastPressure + 3.6) ) && (currentPressure > (lastPressure + 6.0) ) )
+		sprintf(pressTrend, "FFA");
+
+	if (currentPressure < (lastPressure + 6.0) )
+		sprintf(pressTrend, "FVF");	
+}
+
 void printData(void) {
 	
 	memset(data, 0, 128);
-	sprintf(data, "%s	%d:%d:%d	%.1f	%.2f	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
-	sendUART0data(data, sizeof(data));
-	
+	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.2f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, inHg, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
+	sendUART0data(data, sizeof(data));	
 }
 
 void printLCD(void){
@@ -302,14 +322,21 @@ void printLCD(void){
 	if (isPressureSensorPresent) {
 			
 		if ( (lcdLineCount >= 0) && (lcdLineCount <= 4) ) {
-			sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, pressure);
+//			sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, inHg);
+			sprintf(lcdStr, "Temperature\n%.1f C", temperature);
 			writeLCD(lcdStr);
+		}
+		
+		if ( (lcdLineCount > 4) && (lcdLineCount <= 9) ) {
+			sprintf(lcdStr, "Pressure\n%.2f in  %s", inHg, pressTrend);
+			writeLCD(lcdStr);			
+			
 		}
 	}
 		
 	if (isLightSensorPresent) {
 			
-		if ( (lcdLineCount > 4) && (lcdLineCount <= 9) ) {
+		if ( (lcdLineCount > 9) && (lcdLineCount <= 14) ) {
 			sprintf(lcdStr, "Light     UV ind\n%u     %d", rawLightData, uvIndex2);
 			writeLCD(lcdStr);
 		}
@@ -317,13 +344,15 @@ void printLCD(void){
 		
 	if (isTHSensorPresent) {
 			
-		if ( (lcdLineCount > 9) && (lcdLineCount <= 14) ) {
+		if ( (lcdLineCount > 14) && (lcdLineCount <= 19) ) {
 			sprintf(lcdStr, "Temp  %%RH  DP \n%.1f %.1f  %.1f", THtemperature, RH, dewPoint);
 			writeLCD(lcdStr);
 		}
 	}
+	
+
 		
-	if (lcdLineCount++ > 14)
+	if (lcdLineCount++ > 19)
 		lcdLineCount = 0;	
 }
 
@@ -391,12 +420,14 @@ ISR(TIMER1_COMPA_vect) {
 	}
 	
 //	byteDelayCount ++;
-	count++;
-	lcdCount++;
 	
 	if (isPressureSensorPresent) {
 		temperature = getBMPtemp();
-		pressure = getBMPpressure(elevation);
+		pressure = getBMPpressure(elevation); // pressure in hPA = mb
+		inHg = pressure * 0.02953; // 1 inHg = 0.02953 Pa
+		
+		if (longCount == 0)
+			lastPressure = pressure;
 	}
 		
 	if (isTHSensorPresent) {
@@ -405,6 +436,10 @@ ISR(TIMER1_COMPA_vect) {
 		RH = HTU_getData(0xe5);
 		dewPoint = calcDewPoint(THtemperature, RH);
 	}
+	
+	count++;
+	longCount++;
+	lcdCount++;
 }
 
 
@@ -496,18 +531,16 @@ int main (void)
 	if ( (bmpID == 0xba) || (bmpID == 0xbb) )  {
 		
 		memset (data, 0, 128);
-		sprintf(data, "Pressure Sensor not responding\r\n");
+		sprintf(data, "\r\nPressure Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
-		
-//		sprintf(lcdStr, "Sensor Error\nPressure");
-//		writeLCD(lcdStr);
 		isPressureSensorPresent = false;
 		
 	} else {
 		
 		memset (data, 0, 128);
-		sprintf(data, "BMP ID: %4x \r\n", bmpID);
+		sprintf(data, "\r\nBMP ID: %4x \r\n", bmpID);
 		sendUART0data(data, sizeof(data));
+		getBMPcoefficients();
 		isPressureSensorPresent = true;
 	}
 
@@ -517,7 +550,7 @@ int main (void)
 	if ( (si_PartID == 0xaa) || (si_PartID== 0xab) )  {
 		
 		memset (data, 0, 128);
-		sprintf(data, "Light Sensor not responding\r\n");
+		sprintf(data, "\r\nLight Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
 		isLightSensorPresent = false;	 
 		
@@ -528,7 +561,7 @@ int main (void)
 		si_SeqID = SI_readI2Cbyte(REG_SEQ_ID);
 
 		memset (data, 0, 128);
-		sprintf(data, "SI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
+		sprintf(data, "\r\nSI UV Sensor Part ID: %x	Part Rev: %x	Sequencer Rev: %x \r\n", si_PartID, si_RevID, si_SeqID);
 		sendUART0data(data, sizeof(data));	
 
 // Write the hardware key to unlock the sensor		
@@ -575,9 +608,9 @@ int main (void)
 
 		
 //		For ALS measurements... set for high sensitivity or high signal range
-		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_NORMAL);	
+		SI_writeI2Cbyte(REG_PARAM_WR, VIS_RANGE_HI);	
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_VIS_ADC_MISC));		
-		SI_writeI2Cbyte(REG_PARAM_WR, IR_RANGE_NORMAL);
+		SI_writeI2Cbyte(REG_PARAM_WR, IR_RANGE_HI);
 		SI_writeI2Cbyte(REG_COMMAND, (PARAM_SET | ALS_IR_ADC_MISC));	
 			
 //		Start autonomous ALS loop
@@ -591,34 +624,22 @@ int main (void)
 	if ( (HTU_UserReg == 0xaa) || (HTU_UserReg == 0xab) )  {
 		
 		memset (data, 0, 128);
-		sprintf(data, "TH Sensor not responding\r\n");
+		sprintf(data, "\r\nTH Sensor not responding\r\n");
 		sendUART0data(data, sizeof(data));
 		isTHSensorPresent = false;
 		
 	} else {
-		sprintf(data, "HTU21D User Register: %x \r\n", HTU_UserReg);
+		sprintf(data, "\r\nHTU21D User Register: %x \r\n", HTU_UserReg);
 		sendUART0data(data, sizeof(data));
 		isTHSensorPresent = true;
 		
 		// Set the user register byte here
-		HTU_UserReg = HTU_writeI2Cbyte(0xe6, 0x02);	
-		sprintf(data, "HTU21D User Register Set To: %x \r\n", HTU_UserReg);
-		sendUART0data(data, sizeof(data));
+//		HTU_UserReg = HTU_writeI2Cbyte(0xe6, 0x02);	
+//		sprintf(data, "HTU21D User Register Set To: %x \r\n", HTU_UserReg);
+//		sendUART0data(data, sizeof(data));
 
 	}
 			
-	
-	if (isPressureSensorPresent) {
-		getBMPcoefficients();
-	
-		temperature = getBMPtemp();	
-		pressure = getBMPpressure(elevation);
-		
-		memset(data, 0, 128);
-		sprintf(data, "Initial Temperature AND Pressure: %.1f	%.2f\r\n", temperature, pressure);
-		sendUART0data(data, sizeof(data));
-	}
-	
 	rxByteCount = 0;
 		
 		
@@ -632,6 +653,11 @@ int main (void)
 		if (lcdCount >= 1) {
 			lcdCount = 0;
 			printLCD();
+		}
+		
+		if (longCount >= 10800) {
+			longCount = 0;
+			calcPressureTendancy(pressure);	
 		}
 			
 				
@@ -647,7 +673,7 @@ int main (void)
 			}
 			else if ( (rxPacket[0] == 0xa2) && (rxByteCount == 4) ) {
 				rxByteCount = 0;
-				getADCRangeSetPacket(4);
+				getADCRangeSetPacket(5);
 			}
 /*
 	

@@ -310,7 +310,7 @@ double getBMPpressure(uint16_t height) {
 	
 	uint32_t MSB2, LSB2, XLSB;
 	uint32_t rawPressureData;
-	double a, pressure, inHg;
+	double a, pressure, inHg, hPA;
 	
 	int32_t b3, b6;
 	uint32_t b4, b7;
@@ -429,9 +429,12 @@ double getBMPpressure(uint16_t height) {
 	a = pow(a, 5.255);
 		
 	pressure = p / a;
-	inHg = pressure * 0.0002953; // 1 inHg = 0.0002953 Pa
 	
-	return inHg;	
+	hPA = pressure / 100;
+	return hPA;
+	
+//	inHg = pressure * 0.0002953; // 1 inHg = 0.0002953 Pa	
+//	return inHg;	
 }
 
 void BMPreset(void) {
