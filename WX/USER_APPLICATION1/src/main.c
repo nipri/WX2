@@ -280,6 +280,7 @@ double calcDewPoint(double temp, double RH) {
 	return dp;
 }
 
+// Values are in mb and are taken from http://www.islandnet.com/~see/weather/eyes/barometer3.htm
 void calcPressureTendancy(double currentPressure) {
 	
 	if ( ( currentPressure >= (lastPressure - 0.1) ) &&  (currentPressure <= (lastPressure + 0.1 ) ) )
@@ -337,23 +338,53 @@ void printLCD(void){
 	if (isLightSensorPresent) {
 			
 		if ( (lcdLineCount > 9) && (lcdLineCount <= 14) ) {
-			sprintf(lcdStr, "Light     UV ind\n%u     %d", rawLightData, uvIndex2);
+			sprintf(lcdStr, "Amb. Light\n%u lux", rawLightData);
+			writeLCD(lcdStr);
+		}
+		
+		if ( (lcdLineCount > 14) && (lcdLineCount <= 19) ) {
+			sprintf(lcdStr, "UV Index\n%d", uvIndex2);
 			writeLCD(lcdStr);
 		}
 	}
 		
 	if (isTHSensorPresent) {
 			
-		if ( (lcdLineCount > 14) && (lcdLineCount <= 19) ) {
-			sprintf(lcdStr, "Temp  %%RH  DP \n%.1f %.1f  %.1f", THtemperature, RH, dewPoint);
+		if ( (lcdLineCount > 19) && (lcdLineCount <= 24) ) {
+			sprintf(lcdStr, "Rel. Humidity\n%.1f %%", RH);
+			writeLCD(lcdStr);
+		}
+		
+		if ( (lcdLineCount > 24) && (lcdLineCount <= 29) ) {
+			sprintf(lcdStr, "Dew Point\n%.1f C", dewPoint);
 			writeLCD(lcdStr);
 		}
 	}
 	
-
-		
-	if (lcdLineCount++ > 19)
+	if ( (isPressureSensorPresent) && (!isLightSensorPresent) && (!isTHSensorPresent) ) {
+		if (lcdLineCount++ > 9)
 		lcdLineCount = 0;	
+	}
+	
+	else if ( (!isPressureSensorPresent) && (isLightSensorPresent) && (!isTHSensorPresent) ) {
+		if (lcdLineCount++ > 19)
+		lcdLineCount = 10;		
+	}	
+	
+	else if ( (!isPressureSensorPresent) && (!isLightSensorPresent) && (isTHSensorPresent) ) {
+		if (lcdLineCount++ > 29)
+		lcdLineCount = 20;		
+	}
+	
+	else if ( (isPressureSensorPresent) && (isLightSensorPresent) && (isTHSensorPresent) ) {
+		if (lcdLineCount++ > 29)
+		lcdLineCount = 0;		
+	}
+	
+	else {
+		if (lcdLineCount++ > 29)
+		lcdLineCount = 0;
+	}
 }
 
 
