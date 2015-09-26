@@ -283,31 +283,31 @@ double calcDewPoint(double temp, double RH) {
 // Values are in mb and are taken from http://www.islandnet.com/~see/weather/eyes/barometer3.htm
 void calcPressureTendancy(double currentPressure) {
 	
-	if ( ( currentPressure >= (lastPressure - 0.1) ) &&  (currentPressure <= (lastPressure + 0.1 ) ) )
+	if ( ( (currentPressure - lastPressure) <= 0.1) &&  ( (currentPressure - lastPressure) >= -0.1 ) ) 
 		sprintf(pressTrend, "STE");
 		
-	if ( (currentPressure > (lastPressure + 0.1) ) && (currentPressure < (lastPressure + 1.5) ) )
+	else if ( ( (currentPressure - lastPressure) > 0.1)  && ( (currentPressure - lastPressure) < 1.5) ) 
 		sprintf(pressTrend, "RSL");
 		
-	if ( (currentPressure > (lastPressure + 1.6) ) && (currentPressure < (lastPressure + 3.5) ) )
+	else if ( ( (currentPressure - lastPressure) > 1.6)  && ( (currentPressure - lastPressure) < 3.5) ) 
 		sprintf(pressTrend, "RIS");
 		
-	if ( (currentPressure > (lastPressure + 3.6) ) && (currentPressure < (lastPressure + 6.0) ) )
+	else if ( ( (currentPressure - lastPressure) > 3.6)  && ( (currentPressure - lastPressure) < 6.0) ) 
 		sprintf(pressTrend, "RFA");
 
-	if (currentPressure > (lastPressure + 6.0) )
+	else if ( ( (currentPressure - lastPressure) > 6.0) )
 		sprintf(pressTrend, "RVF");
 		
-	if ( (currentPressure < (lastPressure + 0.1) ) && (currentPressure > (lastPressure + 1.5) ) )
+	else if ( ( (lastPressure - currentPressure) > 0.1)  && ( (lastPressure - currentPressure) < 1.5 ) )
 		sprintf(pressTrend, "FSL");
 	
-	if ( (currentPressure < (lastPressure + 1.6) ) && (currentPressure > (lastPressure + 3.5) ) )
+	else if ( ( (lastPressure - currentPressure) >  1.6)  && ( (lastPressure - currentPressure) < 3.5 ) )
 		sprintf(pressTrend, "FAL");
 	
-	if ( (currentPressure < (lastPressure + 3.6) ) && (currentPressure > (lastPressure + 6.0) ) )
+	else if ( ( (lastPressure - currentPressure) >  + 3.6)  && ( (lastPressure - currentPressure)  < 6.0) )
 		sprintf(pressTrend, "FFA");
 
-	if (currentPressure < (lastPressure + 6.0) )
+	else if ( (lastPressure - currentPressure) > 6.0)
 		sprintf(pressTrend, "FVF");	
 }
 
@@ -670,6 +670,10 @@ int main (void)
 //		sendUART0data(data, sizeof(data));
 
 	}
+	
+	if (isPressureSensorPresent) 
+		longCount = 0;	
+		
 			
 	rxByteCount = 0;
 		
