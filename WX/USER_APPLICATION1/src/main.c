@@ -314,7 +314,8 @@ void calcPressureTendancy(double currentPressure) {
 void printData(void) {
 	
 	memset(data, 0, 128);
-	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.2f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, inHg, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
+//	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.2f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, inHg, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
+	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.1f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
 	sendUART0data(data, sizeof(data));	
 }
 
@@ -329,7 +330,7 @@ void printLCD(void){
 		}
 		
 		if ( (lcdLineCount > 4) && (lcdLineCount <= 9) ) {
-			sprintf(lcdStr, "Pressure\n%.2f in  %s", inHg, pressTrend);
+			sprintf(lcdStr, "Pressure  %s\n%.2f in %.1f mb", pressTrend, inHg, pressure);
 			writeLCD(lcdStr);			
 			
 		}
@@ -455,7 +456,7 @@ ISR(TIMER1_COMPA_vect) {
 	if (isPressureSensorPresent) {
 		temperature = getBMPtemp();
 		pressure = getBMPpressure(elevation); // pressure in hPA = mb
-		inHg = pressure * 0.02953; // 1 inHg = 0.02953 Pa
+		inHg = pressure * 0.02953; // 1 inHg = 0.02953 hPa
 		tempF = (temperature*1.8) + 32;
 		
 		if (longCount == 0)
