@@ -38,8 +38,8 @@ static char verSering[] = "pp.10";
 static char pressTrend[] = "---";
 
 
-static double temperature, THtemperature;
-static double RH, dewPoint;
+static double temperature, THtemperature, tempF;
+static double RH, dewPoint, dewPointF;
 static double pressure, lastPressure, inHg;
 static uint16_t elevation = 155.5; // Location elevation in meters
 static uint16_t rawLightData, uvIndex;
@@ -324,7 +324,7 @@ void printLCD(void){
 			
 		if ( (lcdLineCount >= 0) && (lcdLineCount <= 4) ) {
 //			sprintf(lcdStr, "Temp Pressure\n%.1f C  %.2f in", temperature, inHg);
-			sprintf(lcdStr, "Temperature\n%.1f C", temperature);
+			sprintf(lcdStr, "Temperature\n%.1f C  %.1f F", temperature, tempF);
 			writeLCD(lcdStr);
 		}
 		
@@ -356,7 +356,7 @@ void printLCD(void){
 		}
 		
 		if ( (lcdLineCount > 24) && (lcdLineCount <= 29) ) {
-			sprintf(lcdStr, "Dew Point\n%.1f C", dewPoint);
+			sprintf(lcdStr, "Dew Point\n%.1f C  %.1f F", dewPoint, dewPointF);
 			writeLCD(lcdStr);
 		}
 	}
@@ -456,6 +456,7 @@ ISR(TIMER1_COMPA_vect) {
 		temperature = getBMPtemp();
 		pressure = getBMPpressure(elevation); // pressure in hPA = mb
 		inHg = pressure * 0.02953; // 1 inHg = 0.02953 Pa
+		tempF = (temperature*1.8) + 32;
 		
 		if (longCount == 0)
 			lastPressure = pressure;
@@ -466,6 +467,7 @@ ISR(TIMER1_COMPA_vect) {
 		THtemperature = HTU_getData(0xe3);
 		RH = HTU_getData(0xe5);
 		dewPoint = calcDewPoint(THtemperature, RH);
+		dewPointF = (dewPoint * 1.8) + 32;
 	}
 	
 	count++;
