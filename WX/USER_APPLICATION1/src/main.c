@@ -26,11 +26,13 @@
 #include "lcd.h"
 
 static bool isLED = false;
+bool isRainGauge = false;
 static bool isPressureSensorPresent = false;
 static bool isLightSensorPresent = false;
 static bool isTHSensorPresent = false;
 static volatile uint8_t rxPacket[16], byteDelayCount;
 static volatile uint8_t rxByteCount;
+static volatile double rainFall;
 
 static char data[128] = "";
 static char lcdStr[16] = "";
@@ -46,6 +48,7 @@ static uint16_t rawLightData, uvIndex;
 static int uvIndex2;
 static uint16_t count, longCount;
 static uint8_t lcdCount, lcdLineCount;
+uint8_t seconds;
 
 struct datetime {
 	uint8_t seconds;
@@ -283,6 +286,9 @@ double calcDewPoint(double temp, double RH) {
 // Values are in mb and are taken from http://www.islandnet.com/~see/weather/eyes/barometer3.htm
 void calcPressureTendancy(double currentPressure) {
 	
+	sprintf(data, "\r\nLast Pressure: %.1f Current Pressure: %.1f\r\n", lastPressure, currentPressure);
+	sendUART0data(data, 64);
+	
 	if ( ( (currentPressure - lastPressure) <= 0.1) &&  ( (currentPressure - lastPressure) >= -0.1 ) ) 
 		sprintf(pressTrend, "STE");
 		
@@ -315,7 +321,7 @@ void printData(void) {
 	
 	memset(data, 0, 128);
 //	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.2f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, inHg, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
-	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.1f	%s	%u	%d	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint);
+	sprintf(data, "\r\n%s	%d:%d:%d	%.1f	%.1f	%s	%u	%d	%.1f	%.1f	%.1f	%.1f\r\n", verSering, datetime.hours, datetime.minutes, datetime.seconds, temperature, pressure, pressTrend, rawLightData, uvIndex2, THtemperature, RH, dewPoint, rainFall);
 	sendUART0data(data, sizeof(data));	
 }
 
@@ -389,9 +395,11 @@ void printLCD(void){
 }
 
 
-// Will eventually handle the rain gauge
+// Will eventually handle the rain gauge... Pin 9 on the Arduino XMEGA2560 board
 ISR(INT2_vect) {
-	toggleLED();
+
+	isRainGauge = true;
+	seconds = 0;	
 }
 
 // Will eventually handle the anemometer magnetic reed switch
@@ -404,7 +412,7 @@ ISR(INT4_vect) {
 	
 }
 
-// Handles the si1145 UV Sensor... Pin 3 on the Arduino board
+// Handles the si1145 UV Sensor... Pin 3 on the Arduino XMEGA2560 board
 ISR(INT5_vect) {
 	uint8_t rValue;
 	toggleLED();
@@ -433,6 +441,7 @@ ISR(TIMER1_COMPA_vect) {
 //	toggleLED();
 	
 	datetime.seconds++;
+	seconds++;
 	
 	if (datetime.seconds > 59) {
 		datetime.seconds = 0;
@@ -679,7 +688,7 @@ int main (void)
 		
 			
 	rxByteCount = 0;
-		
+	rainFall = 0;	
 		
 	while(1) {
 		
@@ -696,6 +705,11 @@ int main (void)
 		if (longCount >= 10800) {
 			longCount = 0;
 			calcPressureTendancy(pressure);	
+		}
+		
+		if ( (isRainGauge) && (seconds == 4) ) {
+			rainFall += 0.1;
+			isRainGauge = false;
 		}
 			
 				
